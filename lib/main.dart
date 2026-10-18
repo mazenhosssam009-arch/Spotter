@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'app_theme.dart';
 import 'face_detection_module.dart';
 import 'pose_page.dart';
 import 'trainer.dart';
@@ -23,12 +24,12 @@ class AiTrainerApp extends StatelessWidget {
     return MaterialApp(
       title: 'Spotter',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorSchemeSeed: Colors.green, useMaterial3: true),
-      darkTheme: ThemeData(
-        colorSchemeSeed: Colors.green,
-        brightness: Brightness.dark,
-        useMaterial3: true,
-      ),
+      // the app's shared theme (core/theme/app_theme.dart)
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      // the trainer screens are built dark: always use the dark theme, so buttons on them
+      // (+/- reps, Back in the coach dialog) are not dark-on-dark when the phone is in light mode
+      themeMode: ThemeMode.dark,
       home: const MenuPage(),
     );
   }

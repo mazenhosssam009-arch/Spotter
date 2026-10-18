@@ -177,6 +177,9 @@ class _TrainerPageState extends State<TrainerPage> with WidgetsBindingObserver {
   static const warnDelay = 0.25; // a problem must last this long to be shown
   static const warnHold = 0.6; // and stays this long after it is gone
   static const formTau = 0.35; // form score smoothing time constant
+  // time to get into position before counting starts (FR-CV-10 asks for a pre-set countdown)
+  static const setupSeconds = 5.0;
+  double? setupUntil; // counting starts at this time (null = body not seen yet)
 
   // ---- deadlift (same as the python file: 10 frames at 15 fps) ----
   static const deadHoldSeconds = 0.25; // python: 10 frames; a real lift rarely pauses 0.67 s
@@ -192,6 +195,9 @@ class _TrainerPageState extends State<TrainerPage> with WidgetsBindingObserver {
   // 0 = not learned yet, the fixed numbers of the exercise are used.
   double upEff = 0, downEff = 0;
   double? settledSince; // deadlift: standing still near the top after a rep
+  double? deadBar; // deadlift: smoothed bar position (0..100), see _deadBarPer
+  double deadBarTime = 0; // time of the last deadBar update (0 = none yet)
+  bool frontSquatDbg = false; // facing the camera: squat-like hip drop seen (debug view only)
   double _up(Exercise e) => (_isDead && upEff > 0) ? upEff : e.upAngle;
   double _down(Exercise e) => (_isDead && downEff > 0) ? downEff : e.downAngle;
 
@@ -1083,8 +1089,10 @@ class _TrainerPageState extends State<TrainerPage> with WidgetsBindingObserver {
   /// the camera (front and side view). Standing lengths are stored as multiples of it, not
   /// pixels, so stepping toward / away from the phone is not read as a hinge. Pose-based
   /// exercise systems normalise landmarks by a body length for the same reason
-  /// (Ko, Nasridinov & Park (2024) IEEE Access 12). Arms hidden for a moment = the last
-  /// known arm length; null = arms not seen yet (then pixels are used, as before).
+  /// (Ko, Nasridinov & Park (2024) IEEE Access 12). Used by the front-view squat check.
+  /// Only STRAIGHT arms are a ruler: elbow >= 152 deg (180 - 2 x 14 deg elbow error, Francia
+  /// et al. (2024) LNCS Extended Reality pp.40-49). Bent or folded arms (hands raised) look
+  /// shorter, so then the last straight-arm length is kept. null = not seen yet (pixels).
   double? _armRuler(List lm) {
     final arms = <double>[];
     for (final s in const [
@@ -1094,82 +1102,42 @@ class _TrainerPageState extends State<TrainerPage> with WidgetsBindingObserver {
       if (!detector.isVisible(s)) continue;
       final a = _p(lm, s[0]), b = _p(lm, s[1]), c = _p(lm, s[2]);
       if (a == null || b == null || c == null) continue;
+      if (_ang(a, b, c) < 152) continue; // bent arm: not a reliable ruler
       arms.add((a - b).distance + (b - c).distance);
     }
     final r = arms.isEmpty ? 0.0 : arms.reduce((x, y) => x + y) / arms.length;
     if (r < 1) return base['armRuler'];
     if (base['armRuler'] == null) {
       // first time the arms are seen: lengths learned in pixels so far start again in arm lengths
-      base.remove('frontVert');
       base.remove('legExt');
     }
     return base['armRuler'] = r;
   }
 
-  /// Deadlift facing the camera: the hip angle hardly changes in 2D, so use how much
-  /// the torso got shorter vertically compared with standing: lean = acos(vert/standing).
-  /// Returned as an equivalent hip angle (180 = upright) so the same up/down limits work.
-  ///
-  /// Two measures, the one showing MORE hinge wins:
-  /// 1) torso: how much shorter shoulders-to-hips got. At a very deep hinge the shoulders
-  ///    reach hip height or go below it, which counts as the deepest hinge.
-  /// 2) hands: how far the wrists went down compared with standing, as a fraction of the leg
-  ///    length. Facing the camera this is far more reliable than the torso length.
-  double? _frontHinge(List lm, bool idle) {
-    final e = widget.exercise;
-    final sh = _mid(lm, 11, 12), hp = _mid(lm, 23, 24);
-    if (sh == null || hp == null) return null;
-    final ruler = _armRuler(lm) ?? 1.0; // arms not seen yet: pixels, as before
-    final dead = _lim(e, 'frontDead', 10), gain = _lim(e, 'frontGain', 1.5);
-    // dead zone (relaxed standing is never exactly upright) and gain (the camera
-    // under-reads a forward lean): standing = 180, a real hinge reaches the limit
-    double? torso;
-    final vert = hp.dy - sh.dy; // shoulders are above the hips
-    if (vert >= 1) {
-      // standing torso length, stored in arm lengths (see _armRuler) and turned back into pixels
-      final stand = _standBase('frontVert', vert / ruler, idle) * ruler;
-      final lean = math.acos((vert / stand).clamp(0.0, 1.0).toDouble()) * 180 / math.pi;
-      torso = 180 - math.max(0.0, lean - dead) * gain;
-    } else if (base['frontVert'] != null) {
-      // shoulders level with / below the hips: the torso points at the lens = deepest hinge
-      torso = 180 - math.max(0.0, 90 - dead) * gain;
-    }
-    double? hands;
-    final an = _mid(lm, 27, 28), wr = _mid(lm, 15, 16);
-    if (an != null && wr != null) {
-      final ext = an.dy - hp.dy;
-      if (ext > 1) {
-        // standing hip-to-ankle length, stored in arm lengths (see _armRuler)
-        final leg = _standBase('legExt', ext / ruler, idle) * ruler;
-        final drop = (wr.dy - hp.dy) / leg;
-        // hands hanging, standing. While the torso is upright the reference also rises at a
-        // moderate speed: if the first frames were taken with the hands up (holding the
-        // phone, walking into view) the reference was stuck too low and showed a false hinge.
-        final upright = torso == null || torso > 165;
-        final h0 = _lowBase('handDrop0', drop, idle, rise: upright ? 0.05 : 0.005);
-        final dz = _lim(e, 'handDead', 0.12), reach = _lim(e, 'handReach', 0.40);
-        final p = ((drop - h0 - dz) / math.max(reach - dz, 0.05)).clamp(0.0, 1.0).toDouble();
-        hands = 180 - 80 * p; // same scale as the hip angle: 100 = bottom
-      }
-    }
-    dbgFrontTorso = torso ?? double.nan;
-    dbgFrontHands = hands ?? double.nan;
-    if (torso == null) return hands;
-    if (hands == null) return torso;
-    return math.min(torso, hands);
-  }
-
-  /// like _base, but follows quickly DOWNWARD and slowly upward while idle, for a value
-  /// whose standing level is its minimum (hand height: lifting makes it bigger, so the
-  /// start of a lift cannot drag the reference up with it)
-  double _lowBase(String key, double v, bool idle, {double rise = 0.005}) {
-    final b = base[key];
-    if (b == null) {
-      base[key] = v;
-      return v;
-    }
-    if (!idle) return b;
-    return base[key] = v < b ? 0.8 * b + 0.2 * v : (1 - rise) * b + rise * v;
+  /// Deadlift bar (0..100) from the BAR POSITION: how high the wrists are above the user's own
+  /// knee, in shin lengths (knee to ankle), in the SAME frame. Nothing is remembered, so it
+  /// cannot get stuck, the distance to the phone does not matter, and it is the same facing the
+  /// camera and from the side. The hip is not used: bent over facing the camera the hip joints
+  /// are hidden behind the torso and ML Kit places them too high, which made the rep too hard.
+  /// 0% = wrists at standing height: 0.81 shin lengths above the knee ((wrist 0.485 - knee
+  /// 0.285) / shin 0.246 of body height - Winter (2009) Biomechanics and Motor Control of Human
+  /// Movement, 4th ed., after Drillis & Contini). 100% = wrists at knee height: deadlift
+  /// studies split the lift where the bar passes the knees (Escamilla et al. (2000) Med Sci
+  /// Sports Exerc 32(7):1265-1275; Hanen et al. (2025) Front Bioeng Biotechnol 13:1597209).
+  /// Raised or folded hands go UP, so they can never look like a rep. null = not seen.
+  double? _deadBarPer(List lm) {
+    final kn = _mid(lm, 25, 26), an = _mid(lm, 27, 28), wr = _mid(lm, 15, 16);
+    if (kn == null || an == null || wr == null || an.dy - kn.dy < 1) return null;
+    final above = (kn.dy - wr.dy) / (an.dy - kn.dy); // wrists above the knee, in shin lengths
+    final p = interp(above, 0, 0.81, 100, 0);
+    // smoothing like the python files (0.7 old + 0.3 new), but per TIME like _smooth: per frame
+    // it lagged far behind on slow phones (~7 fps measured), so a normal-speed rep never reached
+    // the bottom before the user came back up
+    final t = now();
+    final keep = deadBarTime == 0 ? 0.0 : math.pow(0.7, (t - deadBarTime).clamp(0.0, 1.0) * pythonFps).toDouble();
+    deadBarTime = t;
+    deadBar = deadBar == null ? p : keep * deadBar! + (1 - keep) * p;
+    return deadBar;
   }
 
   /// Curl facing the camera: the forearm moves toward the lens, so the 2D elbow angle drops
@@ -1746,6 +1714,10 @@ class _TrainerPageState extends State<TrainerPage> with WidgetsBindingObserver {
     upEff = 0;
     downEff = 0;
     settledSince = null;
+    deadBar = null;
+    deadBarTime = 0;
+    frontSquatDbg = false;
+    setupUntil = null; // body lost: give the 5 s to get into position again
   }
 
   /// bad numbers (NaN) and one-frame tracking glitches must not move the angle
@@ -1788,11 +1760,13 @@ class _TrainerPageState extends State<TrainerPage> with WidgetsBindingObserver {
       hud.putText(txt, right ? x - txt.length * cw * sc : x, y, sc, color, 2);
     }
 
-    // deadlift (python): shoulders, hips, knees and ankles must ALL be visible.
+    // deadlift: shoulder, hip, knee and ankle of at least ONE side must be clearly seen. Side on,
+    // the far side is behind the body (ML Kit marks it unsure), so asking for both sides blocked
+    // every side-view rep; facing the camera both sides are seen anyway.
     // Every exercise checks that its joints are really seen, and a short dropout
     // (lostGrace) is ridden out instead of resetting the rep.
-    final fullBody =
-        !_isDead || (lmList.isNotEmpty && detector.isVisible([11, 12, 23, 24, 25, 26, 27, 28]));
+    final fullBody = !_isDead ||
+        (lmList.isNotEmpty && (detector.isVisible([12, 24, 26, 28]) || detector.isVisible([11, 23, 25, 27])));
     final rightOk = lmList.isNotEmpty && fullBody && detector.isVisible(e.right);
     final leftOk = lmList.isNotEmpty && fullBody && e.left != null && detector.isVisible(e.left!);
     gateMsg = null;
@@ -1846,10 +1820,9 @@ class _TrainerPageState extends State<TrainerPage> with WidgetsBindingObserver {
       // deadlift: decide side view / front view only while idle (never mid-rep)
       if (_isDead && dir == 0 && !attempt) deadFront = _frontal(lmList, e) == true;
       final sideRaw = !aR.isFinite ? aL : (!aL.isFinite ? aR : math.max(aR, aL));
-      // deadlift: take whichever measure shows MORE hinge. Side on, the hip angle shows it;
-      // facing the camera, the torso getting shorter shows it. No view guessing needed.
-      final frontRaw = _isDead ? _frontHinge(lmList, dir == 0 && !attempt) : null;
-      final raw = (frontRaw != null && sideRaw.isFinite) ? math.min(sideRaw, frontRaw) : (frontRaw ?? sideRaw);
+      // deadlift: this angle is the hip angle (used by the squat check and the speed); the bar
+      // itself comes from the bar position (_deadBarPer below), not from this angle
+      final raw = sideRaw;
       final angle = _cleanAngle(raw, e);
 
       // 0% / 100% of the bar. Deadlift: 0% = the user's OWN standing posture (learned while
@@ -1875,7 +1848,27 @@ class _TrainerPageState extends State<TrainerPage> with WidgetsBindingObserver {
       } else {
         smoothed = _smooth(angle);
       }
-      final per = interp(smoothed, downA, upA, 100, 0).clamp(0.0, 100.0).toDouble();
+      var per = interp(smoothed, downA, upA, 100, 0).clamp(0.0, 100.0).toDouble();
+      // deadlift: the bar follows the wrists (the bar) between standing height and the knees
+      if (_isDead) {
+        // wrists lost for a moment (hand over the bar): keep the last bar position
+        final bp = _deadBarPer(lmList) ?? deadBar;
+        if (bp != null) per = bp;
+      }
+      // curl: the elbow bend only counts while the upper arm hangs down beside the body:
+      // at most 35 deg from the torso (Chen & Yang (2020) arXiv:2006.11718) + 10 deg
+      // pose-estimation error (Kim et al. (2023) Appl Sci 13(4):2700) = 45 deg from straight
+      // down (the torso is upright in a standing curl). Bending with the upper arm raised
+      // forward or to the side is not a curl, so the bar cannot fill.
+      var armDown = true;
+      if (_isCurl) {
+        for (final arm in [e.right, if (e.left != null) e.left!]) {
+          final s = _p(lmList, arm[0]), el = _p(lmList, arm[1]);
+          if (s == null || el == null) continue;
+          if (el.dy <= s.dy || _fromVertical(s, el) > 45) armDown = false;
+        }
+        if (!armDown) per = math.min(per, 90.0);
+      }
       curPer = per;
 
       // angular speed (smoothed): too fast = jerky / momentum
@@ -1907,6 +1900,17 @@ class _TrainerPageState extends State<TrainerPage> with WidgetsBindingObserver {
           repFaults.clear();
         }
       }
+      // ---- CURL: upper arm raised (see armDown above): no rep can start or reach the top ----
+      if (_isCurl && !armDown) {
+        gateOk = false;
+        gateMsg = 'Keep your upper arm down';
+      }
+      // ---- all exercises: 5 s to get into position after the body is first seen ----
+      setupUntil ??= t + setupSeconds;
+      if (t < setupUntil!) {
+        gateOk = false;
+        gateMsg = 'Get in position: ${(setupUntil! - t).ceil()}';
+      }
 
       // ---- DEADLIFT: knees never bend to squat depth (python squat_like) ----
       if (_isDead) {
@@ -1923,16 +1927,19 @@ class _TrainerPageState extends State<TrainerPage> with WidgetsBindingObserver {
         final rdl = e.variant == 'romanian', sumo = e.variant == 'sumo';
         if (deadFront) {
           // facing the camera knee angles are useless (the knees bend toward the lens),
-          // so a squat is detected by the hips dropping: hip-to-ankle height shrinks
+          // so a squat is detected by the hips dropping: hip-to-ankle height shrinks.
+          // It keeps running, but only for the debug view: bent over facing the camera the hip
+          // joints are hidden and ML Kit guesses them, so it rejected real deadlifts. The
+          // research-based squat check runs from the side (knee angle, below).
           final an = _mid(lmList, 27, 28), hpm = _mid(lmList, 23, 24);
           if (an != null && hpm != null) {
             final ext = an.dy - hpm.dy;
-            final ruler = _armRuler(lmList) ?? 1.0; // same units as in _frontHinge
+            final ruler = _armRuler(lmList) ?? 1.0; // stored length in arm lengths (see _armRuler)
             if (ext > 1) {
               final stand = _standBase('legExt', ext / ruler, dir == 0 && !attempt) * ruler;
               final legDrop = _lim(e, 'squatLegDrop', rdl ? 0.25 : (sumo ? 0.50 : 0.38));
               legDropDbg = 1 - ext / stand;
-              if (attempt && legDropDbg > legDrop) squatLike = true;
+              if (attempt && legDropDbg > legDrop) frontSquatDbg = true;
             }
           }
         } else if (ks.isNotEmpty) {
@@ -1948,11 +1955,14 @@ class _TrainerPageState extends State<TrainerPage> with WidgetsBindingObserver {
             final hipFlex = math.max(hipStand - minAngle, 1.0); // how much the hips hinged
             kneeFlexDbg = kneeFlex;
             hipFlexDbg = hipFlex;
-            // a deadlift is mostly HIP hinge (knees bend little); a squat is mostly KNEE
-            // bend. So compare them instead of using one fixed knee angle.
-            final ratio = _lim(e, 'squatRatio', rdl ? 0.9 : (sumo ? 1.8 : 1.2));
-            final deepKnee = _lim(e, 'squatKnee', rdl ? 100 : (sumo ? 55 : 75));
-            if ((kneeFlex >= 45 && kneeFlex > ratio * hipFlex) || minKnee < deepKnee) squatLike = true;
+            // a squat bends the knees past half-squat depth, a deadlift does not: half squat starts
+            // at 110 deg (Schoenfeld (2010) J Strength Cond Res 24(12):3497-3506) - 10 deg pose
+            // error (Kim et al. (2023) Appl Sci 13(4):2700) = 100; conventional deadlift knees are
+            // ~120 deg at lift-off (Hanen et al. (2025) Front Bioeng Biotechnol 13:1597209).
+            // (The old "knee bend > 1.2 x hip bend" rule had no source and compared a raw knee
+            // angle with a lagging smoothed hip angle, so it randomly rejected real deadlifts.)
+            final deepKnee = _lim(e, 'squatKnee', sumo ? 55 : 100);
+            if (minKnee < deepKnee) squatLike = true;
           }
         }
       }
@@ -1970,6 +1980,7 @@ class _TrainerPageState extends State<TrainerPage> with WidgetsBindingObserver {
         minAngle = smoothed;
         repFaults.clear();
         squatLike = false;
+        frontSquatDbg = false;
         minKnee = 999;
         settledSince = null;
         // smoothness / average form of this rep start from zero
@@ -2057,10 +2068,10 @@ class _TrainerPageState extends State<TrainerPage> with WidgetsBindingObserver {
         }
         if (_isDead) {
           String n(double? v) => (v == null || !v.isFinite) ? '-' : v.round().toString();
-          dbg.add('side ${n(sideRaw)}  front ${n(frontRaw)}  (lower one is used)');
+          dbg.add('hip angle ${n(sideRaw)}  bar (wrists above knee) ${n(deadBar)}%');
           dbg.add('knee flex ${kneeFlexDbg.round()}  hip flex ${hipFlexDbg.round()}  '
-              'squat ${squatLike ? 'YES' : 'no'}');
-          dbg.add('view ${deadFront ? 'FRONT' : 'side'}  torso ${n(dbgFrontTorso)}  hands ${n(dbgFrontHands)}  '
+              'squat ${squatLike ? 'YES' : 'no'}  front squat (not shown) ${frontSquatDbg ? 'YES' : 'no'}');
+          dbg.add('view ${deadFront ? 'FRONT' : 'side'}  '
               'bottom at per ${reachPer.round()}  leg drop ${legDropDbg.toStringAsFixed(2)}');
         }
       }
