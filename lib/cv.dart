@@ -16,9 +16,10 @@ typedef _Op = void Function(Canvas canvas, Size size, double sx, double sy);
 /// One camera frame: the image that goes to the detector ("imgRGB") plus the
 /// things drawn on it, in image pixel coordinates, like cv2 drawing on img.
 class Frame {
-  Frame(this.input, this.width, this.height, {this.mirror = false, this.detectScale = 1})
+  Frame(this.input, this.width, this.height, {this.mirror = false, this.swapLeftRight = false, this.detectScale = 1})
       : _ops = [];
-  Frame._(this.input, this.width, this.height, this.mirror, this._ops, this.detectScale);
+  Frame._(this.input, this.width, this.height, this.mirror, this._ops, this.detectScale,
+      this.swapLeftRight);
 
   final InputImage input;
   final double width, height;
@@ -27,10 +28,12 @@ class Frame {
   final double detectScale;
   // the front camera preview is mirrored, so drawings on the body are mirrored too
   final bool mirror;
+  // iOS front camera: the detector sees a mirrored person, so left/right labels are swapped
+  final bool swapLeftRight;
   final List<_Op> _ops;
 
   /// same frame but not mirrored: for the bar, counter and fps text
-  Frame get hud => Frame._(input, width, height, false, _ops, detectScale);
+  Frame get hud => Frame._(input, width, height, false, _ops, detectScale, swapLeftRight);
 
   Offset _p(num x, num y) => Offset(mirror ? width - x : x.toDouble(), y.toDouble());
 

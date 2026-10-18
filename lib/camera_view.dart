@@ -107,8 +107,13 @@ class _CameraViewState extends State<CameraView> {
         meta.rotation == InputImageRotation.rotation270deg;
     final w = (sideways ? image.height : image.width).toDouble();
     final h = (sideways ? image.width : image.height).toDouble();
+    final front = _camera.lensDirection == CameraLensDirection.front;
+    // iOS: the camera plugin already delivers the front camera frame upright AND mirrored
+    // (like the preview), so nothing is mirrored again here, but ML Kit sees a mirrored
+    // person and therefore calls the left side "right" -> swap the labels back.
     final img = Frame(input, w, h,
-        mirror: _camera.lensDirection == CameraLensDirection.front,
+        mirror: front && !Platform.isIOS,
+        swapLeftRight: front && Platform.isIOS,
         detectScale: image.width / meta.size.width);
 
     widget.onFrame(img).then((_) {
@@ -159,7 +164,11 @@ class _CameraViewState extends State<CameraView> {
     final sensor = _camera.sensorOrientation;
     InputImageRotation? rotation;
     if (Platform.isIOS) {
-      rotation = InputImageRotationValue.fromRawValue(sensor);
+      // iOS frames are already rotated upright by the camera plugin (portrait buffer),
+      // so no rotation; only a landscape buffer still needs the sensor rotation
+      rotation = image.height >= image.width
+          ? InputImageRotation.rotation0deg
+          : InputImageRotationValue.fromRawValue(sensor);
     } else {
       var comp = _orientations[controller.value.deviceOrientation];
       if (comp == null) return null;

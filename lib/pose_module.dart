@@ -42,15 +42,33 @@ class PoseDetector {
     } else {
       // back to pixels of the full size picture
       final s = img.detectScale;
+      var raw = poses.first.landmarks;
+      if (img.swapLeftRight) raw = _swapSides(raw);
       final lms = s == 1
-          ? poses.first.landmarks
-          : poses.first.landmarks.map((type, l) => MapEntry(
+          ? raw
+          : raw.map((type, l) => MapEntry(
               type,
               mp.PoseLandmark(type: type, x: l.x * s, y: l.y * s, z: l.z * s, likelihood: l.likelihood)));
       results = smoothLm ? _smoother.apply(lms, now()) : lms;
     }
     if (results != null && draw) _drawLandmarks(img);
     return img;
+  }
+
+  /// swaps every left/right landmark pair: eyes 1-3 <-> 4-6, then 7<->8, 9<->10 ... 31<->32
+  static Map<mp.PoseLandmarkType, mp.PoseLandmark> _swapSides(
+      Map<mp.PoseLandmarkType, mp.PoseLandmark> lms) {
+    final v = mp.PoseLandmarkType.values;
+    int swap(int i) {
+      if (i == 0) return 0; // nose
+      if (i <= 3) return i + 3; // left eye -> right eye
+      if (i <= 6) return i - 3; // right eye -> left eye
+      return i.isOdd ? i + 1 : i - 1; // 7<->8, 9<->10, ... 31<->32
+    }
+    return lms.map((type, l) {
+      final t = v[swap(type.index)];
+      return MapEntry(t, mp.PoseLandmark(type: t, x: l.x, y: l.y, z: l.z, likelihood: l.likelihood));
+    });
   }
 
   // mpDraw.draw_landmarks: white connections, red points
