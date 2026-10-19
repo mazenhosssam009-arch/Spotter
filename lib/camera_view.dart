@@ -103,12 +103,17 @@ class _CameraViewState extends State<CameraView> {
     final id = ++_sent;
 
     final meta = input.metadata!;
-    final sideways = meta.rotation == InputImageRotation.rotation90deg ||
-        meta.rotation == InputImageRotation.rotation270deg;
+    // iOS: the camera plugin already turns the stream upright and mirrors the front camera
+    // (camera_avfoundation: videoOrientation + isVideoMirrored), so the picture is used as it
+    // is: no width/height swap and no second mirroring (same as the google_mlkit example's
+    // coordinates_translator). Android is unchanged.
+    final sideways = !Platform.isIOS &&
+        (meta.rotation == InputImageRotation.rotation90deg ||
+            meta.rotation == InputImageRotation.rotation270deg);
     final w = (sideways ? image.height : image.width).toDouble();
     final h = (sideways ? image.width : image.height).toDouble();
     final img = Frame(input, w, h,
-        mirror: _camera.lensDirection == CameraLensDirection.front,
+        mirror: !Platform.isIOS && _camera.lensDirection == CameraLensDirection.front,
         detectScale: image.width / meta.size.width);
 
     widget.onFrame(img).then((_) {
