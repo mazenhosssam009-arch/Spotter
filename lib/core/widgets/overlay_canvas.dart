@@ -1,6 +1,4 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 
 // colors used by the python code (cv2 uses BGR, these are the same colors in RGB)
 const blue = Color(0xFF0000FF); // (255,0,0) in cv2
@@ -13,24 +11,19 @@ const filled = -1.0; // cv2.FILLED
 
 typedef _Op = void Function(Canvas canvas, Size size, double sx, double sy);
 
-/// One camera frame: the image that goes to the detector ("imgRGB") plus the
-/// things drawn on it, in image pixel coordinates, like cv2 drawing on img.
-class Frame {
-  Frame(this.input, this.width, this.height, {this.mirror = false, this.detectScale = 1})
-      : _ops = [];
-  Frame._(this.input, this.width, this.height, this.mirror, this._ops, this.detectScale);
+/// What is drawn on one camera frame, in image pixel coordinates, like cv2
+/// drawing on img. [OverlayPainter] puts it on top of the camera preview.
+class OverlayFrame {
+  OverlayFrame(this.width, this.height, {this.mirror = false}) : _ops = [];
+  OverlayFrame._(this.width, this.height, this.mirror, this._ops);
 
-  final InputImage input;
   final double width, height;
-  // the detector gets a smaller copy of the picture; multiply its results by this
-  // to get pixels of the real (width x height) picture
-  final double detectScale;
   // the front camera preview is mirrored, so drawings on the body are mirrored too
   final bool mirror;
   final List<_Op> _ops;
 
   /// same frame but not mirrored: for the bar, counter and fps text
-  Frame get hud => Frame._(input, width, height, false, _ops, detectScale);
+  OverlayFrame get hud => OverlayFrame._(width, height, false, _ops);
 
   Offset _p(num x, num y) => Offset(mirror ? width - x : x.toDouble(), y.toDouble());
 
@@ -80,16 +73,14 @@ class Frame {
   }
 }
 
-/// draws a Frame on top of the camera preview ("cv2.imshow").
-/// It listens to [frame], so only this layer repaints when a new frame arrives
-/// (the camera preview under it is not rebuilt).
-class FramePainter extends CustomPainter {
-  FramePainter(this.frame) : super(repaint: frame);
-  final ValueListenable<Frame?> frame;
+/// draws an OverlayFrame on top of the camera preview ("cv2.imshow")
+class OverlayPainter extends CustomPainter {
+  OverlayPainter(this.frame);
+  final OverlayFrame? frame;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final f = frame.value;
+    final f = frame;
     if (f == null) return;
     final sx = size.width / f.width, sy = size.height / f.height;
     for (final op in f._ops) {
@@ -98,15 +89,5 @@ class FramePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(FramePainter old) => old.frame != frame;
+  bool shouldRepaint(OverlayPainter old) => old.frame != frame;
 }
-
-/// np.interp: maps x from (x0,x1) to (y0,y1), clamped to the ends
-double interp(double x, double x0, double x1, double y0, double y1) {
-  if (x <= x0) return y0;
-  if (x >= x1) return y1;
-  return y0 + (x - x0) * (y1 - y0) / (x1 - x0);
-}
-
-/// time.time()
-double now() => DateTime.now().microsecondsSinceEpoch / 1e6;

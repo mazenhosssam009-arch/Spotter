@@ -39,6 +39,11 @@ dependencies:
   google_mlkit_face_detection: ^0.15.1
   wakelock_plus: ^1.8.1
   google_fonts: ^9.0.0
+  dartz: ^0.10.1
+  equatable: ^3.0.0
+  bloc: ^9.2.1
+  flutter_bloc: ^9.1.1
+  get_it: ^9.3.0
 
 dev_dependencies:
   flutter_test:

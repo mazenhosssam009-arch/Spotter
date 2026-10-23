@@ -5,7 +5,8 @@ import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
-import 'spotter_theme.dart';
+import 'package:ai_trainer/core/theme/spotter_theme.dart';
+import 'package:ai_trainer/core/widgets/spot_widgets.dart';
 
 // A realistic, muscular trainer drawn in 3D from joint angles, so every pose is a handful of
 // numbers, the poses can be animated by blending two of them, and the camera can turn 360 degrees
