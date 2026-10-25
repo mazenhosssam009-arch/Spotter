@@ -74,6 +74,11 @@ class TtsEngine {
   Timer? _releaseTimer;
   static const _releaseAfter = Duration(seconds: 4);
   double? _playerSpeed, _playerVolume;
+  // one sentence at a time: the next one starts only after the previous one is over
+  Future<void> _lock = Future<void>.value();
+  // a stop that is still running: the next sentence waits for it, so a late stop can
+  // never cut off the new sentence and two sounds never play together
+  Future<void> _stopping = Future<void>.value();
   DateTime _devicesChecked = DateTime.fromMillisecondsSinceEpoch(0);
 
   /// true while the coach is talking (the voice-command listener pauses meanwhile)
@@ -331,7 +336,13 @@ class TtsEngine {
           await _player.setSpeed(speed);
         }
         await _player.setAudioSources(run);
-        await _player.play(); // returns when the last clip ends (or stop() is called)
+        if (id != _speakId) break;
+        // wait for the end of the last clip (or a stop), not for play()'s future
+        final finished = _player.processingStateStream
+            .firstWhere((st) => st == ProcessingState.completed || st == ProcessingState.idle)
+            .timeout(const Duration(seconds: 20), onTimeout: () => ProcessingState.idle);
+        unawaited(_player.play());
+        await finished;
         await _player.stop();
         speaking.value = false;
       } else {
@@ -340,21 +351,38 @@ class TtsEngine {
           missing.add(pieces[i]);
           i++;
         }
-        await _tts.speak(missing.join(' '));
+        if (id != _speakId) break;
+        await _ttsSay(missing.join(' '));
       }
     }
   }
 
   // ------------------------------------------------------------------ speaking
 
-  /// says [text]; [interrupt] = stop whatever is being said first (safety warnings);
-  /// [preview] = the "Test voice" button (plays even without headphones)
-  Future<void> speak(String text, {bool interrupt = false, bool preview = false}) async {
-    if (text.trim().isEmpty) return;
+  /// the phone voice; never waits forever if the platform misses the "done" event
+  Future<void> _ttsSay(String text) async {
+    try {
+      await _tts.speak(text).timeout(const Duration(seconds: 20));
+    } on TimeoutException {
+      await _tts.stop();
+    }
+  }
+
+  /// says [text] after whatever is being said now; [interrupt] = stop that first
+  /// (safety warnings); [preview] = the "Test voice" button (plays without headphones)
+  Future<void> speak(String text, {bool interrupt = false, bool preview = false}) {
+    if (text.trim().isEmpty) return Future<void>.value();
+    if (interrupt) stop();
+    final job = _lock.then((_) => _speakNow(text, preview));
+    _lock = job.catchError((Object _) {});
+    return job;
+  }
+
+  Future<void> _speakNow(String text, bool preview) async {
     final s = _applied;
     if (s == null) return;
     if (!preview && s.headphonesOnly && !await headphonesConnected()) return;
-    if (interrupt && speaking.value) await stop();
+    await _stopping; // a stop still running must finish before we start
     final id = ++_speakId;
     final folder = await _clipFolder(s);
     // Android: audio focus; iOS: the audio session (lowers the music, then gives it back)
@@ -362,7 +390,7 @@ class TtsEngine {
     try {
       if (focus) await _acquire();
       if (folder == null) {
-        await _tts.speak(ClipText.forTts(text)); // waits until done (awaitSpeakCompletion)
+        await _ttsSay(ClipText.forTts(text)); // waits until done (awaitSpeakCompletion)
       } else {
         await _speakClips(text, folder, s, id);
       }
@@ -400,17 +428,22 @@ class TtsEngine {
     } catch (_) {}
   }
 
-  Future<void> stop() async {
-    _speakId++; // a clip sequence that is playing stops after its current part
-    try {
-      await _tts.stop();
-    } catch (_) {}
-    try {
-      await _player.stop();
-    } catch (_) {}
+  /// stops what is being said now (the next queued sentence still plays)
+  Future<void> stop() {
+    _speakId++; // a clip sequence that is playing ends here
     speaking.value = false;
+    final done = () async {
+      try {
+        await _tts.stop();
+      } catch (_) {}
+      try {
+        await _player.stop();
+      } catch (_) {}
+    }();
+    _stopping = done;
     // an interruption is usually followed by the next sentence at once: keep the session
     if (_sessionActive) _scheduleRelease();
+    return done;
   }
 
   /// the voice list changes when the user installs a voice in the phone settings

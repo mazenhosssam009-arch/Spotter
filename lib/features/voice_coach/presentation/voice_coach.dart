@@ -49,7 +49,9 @@ class VoiceCoach {
   final VoiceCommandListener listener;
 
   // priorities (higher is said first)
-  static const _pSafety = 100, _pCountdown = 90, _pWarn = 70, _pRep = 60, _pSetup = 50, _pInfo = 40, _pPraise = 20;
+  // the guide's order: safety corrections, then rep counts, then form corrections, then
+  // setup / info, then praise
+  static const _pSafety = 100, _pCountdown = 90, _pRep = 85, _pWarn = 70, _pSetup = 50, _pInfo = 40, _pPraise = 20;
 
   final _queue = <_Utterance>[];
   bool _busy = false;
@@ -370,7 +372,7 @@ class VoiceCoach {
     if (!counted && !labelNew) return;
 
     final parts = <String>[];
-    var priority = _pRep;
+    const priority = _pRep; // a rep result ("didn't count") stands in for the number
     final n = c.setReps;
 
     if (counted && _atLeast(CoachVerbosity.warningsReps) && _countThis(n)) parts.add(_say.number(n));
@@ -394,7 +396,6 @@ class VoiceCoach {
         if (text != null) {
           if (!r.clean && _atLeast(CoachVerbosity.warnings)) {
             parts.add(text);
-            priority = _pWarn;
           } else if (r.clean && _atLeast(CoachVerbosity.warningsReps)) {
             parts.add(text);
           }
@@ -416,7 +417,9 @@ class VoiceCoach {
       parts.add(_say.formScore(c.formScore.round()));
     }
 
-    if (parts.isNotEmpty) _enqueue(parts.join(ClipText.sentence), priority, maxAge: 1.8, key: 'rep');
+    // a rep is said even if it waits a bit behind a warning; a newer rep replaces an
+    // older one that was not said yet (never several numbers in a row to catch up)
+    if (parts.isNotEmpty) _enqueue(parts.join(ClipText.sentence), priority, maxAge: 3, key: 'rep');
   }
 
   void _onSetup(TrainerState st, RepCounter c, double t) {
@@ -506,6 +509,9 @@ class VoiceCoach {
     }
     if (best == null || !_atLeast(CoachVerbosity.warnings)) return;
     if (t - _lastWarningAt < 2.5) return; // a short gap between two warnings
+    // the coach is talking (or a rep count is waiting): a normal warning waits for a
+    // quiet moment instead of piling up; only a clear fault gets in at once
+    if (!bestSevere && (_busy || _queue.isNotEmpty)) return;
 
     final times = _spokenTimes.putIfAbsent(best, () => <double>[])..removeWhere((x) => t - x > 45);
     final repeat = times.isNotEmpty;
