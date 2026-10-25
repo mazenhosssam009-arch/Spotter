@@ -126,3 +126,31 @@ dart run tool/make_egyptian_voice.dart --key YOUR_AZURE_KEY --region YOUR_REGION
 On the free Azure tier this takes about 30–45 minutes (Azure allows about 20 requests a minute; the tool waits by itself).
 If you change Arabic text in `phrase_bank.dart`, run it again: only the new pieces are made.
 **Never put the key in the code or on GitHub.**
+
+---
+
+# Natural Egyptian voice with ElevenLabs (Eleven v4)
+
+The Microsoft voices (Shakir / Salma) read in a slow, careful style that does not sound like
+a normal Egyptian. ElevenLabs has Egyptian-accented voices that sound much more like a real
+person. `tool/make_egyptian_voice_elevenlabs.py` records the same clips with them: same
+folders, same file names, so **the app does not change**; only the sound files do.
+
+Needs an ElevenLabs account and API key (elevenlabs.io > Developers > API keys). The key is
+only given in the terminal and never saved. **Never put it in the code or on GitHub.**
+
+PowerShell, from the project folder:
+```
+$env:ELEVENLABS_API_KEY = "your key"
+python tool/make_egyptian_voice_elevenlabs.py --find                 # Egyptian voices: name, voice id, preview link
+python tool/make_egyptian_voice_elevenlabs.py --sample ID1 ID2 ID3   # 8 real coach lines per voice -> tool/try/elevenlabs/
+python tool/make_egyptian_voice_elevenlabs.py --sample ID1 --no-tashkeel
+dart run tool/make_egyptian_voice.dart --list
+python tool/make_egyptian_voice_elevenlabs.py --male ID --female ID [--no-tashkeel]
+```
+- A voice from the public Voice Library must first be added to "My voices" on elevenlabs.io.
+- The full recording is about 7,000 characters per voice without tashkeel (10,000 with it).
+  The script prints the count and asks before it starts. Check your plan's monthly characters.
+- Re-running only records new or changed pieces (`assets/voice/ar_eg/recorded_elevenlabs.json`).
+- Giving only `--male` keeps the old female clips (and the other way round).
+- Do not run `make_egyptian_voice_edge.py` afterwards: it would record the Microsoft voices over them.

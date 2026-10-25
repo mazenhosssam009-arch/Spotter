@@ -1,0 +1,15 @@
+Every file says the same 6 lines:
+  ارفع صدرك
+  متخليش ركبتك تدخل لجوه
+  تلاتة ريبس
+  ارجع لورا شويه، عايز اشوفك من راسك لرجلك
+  الراحه خلصت، جاهز للسِت اللي جاي؟
+  فاضل اتنين! يلا!
+
+1 = how the app records now (full tashkeel), male
+2 = same words, tashkeel removed, male
+3 = typed the way Egyptians type in chat, male
+4 = like 3 but 12% faster, male
+5 = like 3, female
+6 = like 3 but 12% faster, female
+7 = how the app plays "3 reps" today: two separate clips glued together, vs 8 = one recording
