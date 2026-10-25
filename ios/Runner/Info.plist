@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+	<string>The camera watches your form and counts your reps.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Voice commands like "finish" and "next set" while you train.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Understands voice commands like "finish" and "next set".</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

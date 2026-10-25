@@ -1,4 +1,5 @@
 import 'package:get_it/get_it.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ai_trainer/core/camera/input_image_converter.dart';
 import 'package:ai_trainer/features/face_detection/data/datasources/face_detector_data_source.dart';
 import 'package:ai_trainer/features/face_detection/data/repositories/face_detector_impl.dart';
@@ -18,6 +19,11 @@ import 'package:ai_trainer/features/pose_coaching/domain/usecases/process_pose_f
 import 'package:ai_trainer/features/pose_coaching/presentation/bloc/exercise_menu_cubit/exercise_menu_cubit.dart';
 import 'package:ai_trainer/features/pose_coaching/presentation/bloc/pose_bloc/pose_bloc.dart';
 import 'package:ai_trainer/features/pose_coaching/presentation/bloc/trainer_bloc/trainer_bloc.dart';
+import 'package:ai_trainer/features/voice_coach/data/datasources/tts_engine.dart';
+import 'package:ai_trainer/features/voice_coach/data/datasources/voice_command_listener.dart';
+import 'package:ai_trainer/features/voice_coach/data/datasources/voice_settings_store.dart';
+import 'package:ai_trainer/features/voice_coach/presentation/cubit/voice_settings_cubit.dart';
+import 'package:ai_trainer/features/voice_coach/presentation/voice_coach.dart';
 
 final sl = GetIt.instance;
 
@@ -28,6 +34,7 @@ Future<void> init() async {
   initPoseCoaching();
   initFaceDetection();
   initCore();
+  await initVoiceCoach();
 }
 
 void initPoseCoaching() {
@@ -75,4 +82,15 @@ void initFaceDetection() {
 
 void initCore() {
   sl.registerLazySingleton(() => InputImageConverter());
+}
+
+// one voice and one microphone for the whole app; the settings cubit is app-wide so a
+// change in the settings screen is heard at once. Every workout gets its own VoiceCoach.
+Future<void> initVoiceCoach() async {
+  final prefs = await SharedPreferences.getInstance();
+  sl.registerLazySingleton(() => VoiceSettingsStore(prefs));
+  sl.registerLazySingleton(() => TtsEngine());
+  sl.registerLazySingleton(() => VoiceCommandListener());
+  sl.registerLazySingleton(() => VoiceSettingsCubit(store: sl(), engine: sl()));
+  sl.registerFactory(() => VoiceCoach(settings: sl(), engine: sl(), store: sl(), listener: sl()));
 }

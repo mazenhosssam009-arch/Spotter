@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -18,6 +20,9 @@ import 'package:ai_trainer/features/pose_coaching/presentation/widgets/rest_over
 import 'package:ai_trainer/features/pose_coaching/presentation/widgets/rest_timer_dialog.dart';
 import 'package:ai_trainer/features/pose_coaching/presentation/widgets/trainer_overlay.dart';
 import 'package:ai_trainer/features/pose_coaching/presentation/widgets/trainer_panel.dart';
+import 'package:ai_trainer/features/voice_coach/data/datasources/voice_command_listener.dart';
+import 'package:ai_trainer/features/voice_coach/presentation/voice_coach.dart';
+import 'package:ai_trainer/features/voice_coach/presentation/widgets/voice_quick_sheet.dart';
 import 'package:ai_trainer/injection_container.dart';
 
 /// AiTrainer.py / SquatTrainer.py / DeadliftTrainer.py / BenchPressTrainer.py
@@ -45,18 +50,59 @@ class _TrainerView extends StatefulWidget {
 class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver {
   TrainerBloc get _bloc => context.read<TrainerBloc>();
 
+  // the voice coach of this workout (form warnings, reps, rest...) and its voice commands
+  late final VoiceCoach _coach;
+  StreamSubscription<VoiceCommand>? _commandSub;
+  BuildContext? _restDialog; // the "Rest finished" dialog while it is open
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WakelockPlus.enable(); // the screen stays on during the whole workout
+    _coach = sl<VoiceCoach>()..attach(_bloc, widget.exercise);
+    _commandSub = _coach.commands.listen(_onVoiceCommand);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     WakelockPlus.disable();
+    _commandSub?.cancel();
+    _coach.dispose();
     super.dispose();
+  }
+
+  /// hands-free: "finish" / "خلصت", "next" / "يلا", "more time" / "وقت زيادة"...
+  void _onVoiceCommand(VoiceCommand cmd) {
+    if (!mounted) return;
+    final s = _bloc.state;
+    final dialog = _restDialog;
+    switch (cmd) {
+      case VoiceCommand.finishSet:
+        if (!s.paused) _finishSet();
+      case VoiceCommand.next:
+      case VoiceCommand.skip:
+        if (dialog != null) {
+          Navigator.pop(dialog, false); // "Next set"
+        } else if (s.getReady) {
+          _bloc.add(GetReadySkipped());
+        } else if (s.resting) {
+          _bloc.add(NextSetStarted());
+        }
+      case VoiceCommand.moreTime:
+        if (dialog != null && s.extraUsed < TrainerBloc.maxExtensions) Navigator.pop(dialog, true);
+      case VoiceCommand.stopTimer:
+        if (s.resting && !s.restFinished) _bloc.add(RestStopped());
+      case VoiceCommand.plusRep:
+        if (!s.paused) _bloc.add(const RepAdjusted(delta: 1));
+      case VoiceCommand.minusRep:
+        if (!s.paused) _bloc.add(const RepAdjusted(delta: -1));
+      case VoiceCommand.mute:
+      case VoiceCommand.unmute:
+      case VoiceCommand.howMany:
+        break; // the coach answers these itself
+    }
   }
 
   /// timers use the wall clock, so after a phone call / background trip they are still right
@@ -65,15 +111,17 @@ class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver 
     if (state == AppLifecycleState.resumed) _bloc.add(TrainerTicked());
   }
 
-  void _beep() {
-    SystemSound.play(SystemSoundType.click);
+  void _beep(TrainerState state) {
+    // the voice coach says "3, 2, 1" itself: only vibrate then
+    if (!(state.getReady && _coach.speaksCountdown)) SystemSound.play(SystemSoundType.click);
     HapticFeedback.selectionClick();
   }
 
   /// the rest is over: three long vibrations + system alert sound
   Future<void> _ringAlert() async {
     for (var i = 0; i < 3; i++) {
-      SystemSound.play(SystemSoundType.alert);
+      // the voice coach announces it: one alert sound is enough, so they don't overlap
+      if (i == 0 || !_coach.speaksCountdown) SystemSound.play(SystemSoundType.alert);
       HapticFeedback.vibrate();
       await Future.delayed(const Duration(milliseconds: 450));
       if (!mounted) return;
@@ -115,23 +163,27 @@ class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver 
     final more = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (c) => PopScope(
-        canPop: false,
-        child: SpotDialog(
-          title: 'Rest finished',
-          content: Text(left > 0
-              ? 'Ready for set ${setNumber + 1}? You can add more time ($left left).'
-              : 'Ready for set ${setNumber + 1}? No more extra time.'),
-          actions: [
-            SpotButton('Next set ${setNumber + 1}',
-                icon: Icons.play_arrow, onPressed: () => Navigator.pop(c, false)),
-            if (left > 0)
-              SpotButton('More time +${mmss(state.restSeconds)} · $left left',
-                  icon: Icons.add, kind: SpotKind.secondary, onPressed: () => Navigator.pop(c, true)),
-          ],
-        ),
-      ),
+      builder: (c) {
+        _restDialog = c;
+        return PopScope(
+          canPop: false,
+          child: SpotDialog(
+            title: 'Rest finished',
+            content: Text(left > 0
+                ? 'Ready for set ${setNumber + 1}? You can add more time ($left left).'
+                : 'Ready for set ${setNumber + 1}? No more extra time.'),
+            actions: [
+              SpotButton('Next set ${setNumber + 1}',
+                  icon: Icons.play_arrow, onPressed: () => Navigator.pop(c, false)),
+              if (left > 0)
+                SpotButton('More time +${mmss(state.restSeconds)} · $left left',
+                    icon: Icons.add, kind: SpotKind.secondary, onPressed: () => Navigator.pop(c, true)),
+            ],
+          ),
+        );
+      },
     );
+    _restDialog = null;
     if (!mounted) return;
     _bloc.add(more == true ? RestExtended() : NextSetStarted());
   }
@@ -193,6 +245,16 @@ class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver 
               state.counter == null ? const SizedBox.shrink() : build(state.counter!),
         );
     return [
+      // voice coach: tap = mute / language / settings
+      ValueListenableBuilder<bool>(
+        valueListenable: _coach.muted,
+        builder: (context, muted, _) => _pill(
+          muted ? Icons.volume_off_outlined : Icons.record_voice_over_outlined,
+          '',
+          'Voice coach',
+          () => showVoiceQuickSheet(context, _coach),
+        ),
+      ),
       _pill(Icons.timer_outlined, 'Timer', 'Rest timer', _restSettings),
       _pill(Icons.school_outlined, '', 'How to do this exercise', () => showExerciseGuide(context, widget.exercise)),
       if (widget.exercise.name.contains('Bench'))
@@ -237,7 +299,7 @@ class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver 
       listeners: [
         BlocListener<TrainerBloc, TrainerState>(
           listenWhen: (a, b) => a.beeps != b.beeps,
-          listener: (_, _) => _beep(),
+          listener: (_, state) => _beep(state),
         ),
         BlocListener<TrainerBloc, TrainerState>(
           listenWhen: (a, b) => !a.restFinished && b.restFinished,

@@ -783,6 +783,10 @@ class RepCounter {
 
   bool _severeNow(String m, double t) => t - (warnSevere[m] ?? -99) <= warnHold;
 
+  /// true when warning [m] is a clear fault right now (it rejects the rep): the voice
+  /// coach says these at once and may interrupt itself for them
+  bool isSevere(String m, double t) => _severeNow(m, t);
+
   /// a problem is only shown after it lasted warnDelay and is kept warnHold: no flicker
   void _updateWarnings(FormEvaluation ev, double t) {
     for (final m in ev.warns) {

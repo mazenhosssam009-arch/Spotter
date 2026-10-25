@@ -8,11 +8,30 @@ import 'package:ai_trainer/features/pose_coaching/presentation/bloc/exercise_men
 import 'package:ai_trainer/features/pose_coaching/presentation/screens/chrome_support_screen.dart';
 import 'package:ai_trainer/features/pose_coaching/presentation/screens/pose_estimation_screen.dart';
 import 'package:ai_trainer/features/pose_coaching/presentation/screens/trainer_screen.dart';
+import 'package:ai_trainer/features/voice_coach/domain/entities/voice_settings.dart';
+import 'package:ai_trainer/features/voice_coach/presentation/cubit/voice_settings_cubit.dart';
+import 'package:ai_trainer/features/voice_coach/presentation/screens/voice_settings_screen.dart';
+import 'package:ai_trainer/features/voice_coach/presentation/widgets/voice_language_sheet.dart';
 import 'package:ai_trainer/injection_container.dart';
 
 /// Main.py: choose your training
-class TrainingMenuScreen extends StatelessWidget {
+class TrainingMenuScreen extends StatefulWidget {
   const TrainingMenuScreen({super.key});
+
+  @override
+  State<TrainingMenuScreen> createState() => _TrainingMenuScreenState();
+}
+
+class _TrainingMenuScreenState extends State<TrainingMenuScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // first launch: let the user choose the coach's language (English / Egyptian Arabic)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || kIsWeb) return;
+      if (!context.read<VoiceSettingsCubit>().state.languageChosen) showVoiceLanguageSheet(context);
+    });
+  }
 
   void _open(BuildContext context, Widget page, String feature) {
     Routing.routePush(kIsWeb ? ChromeSupportScreen(feature: feature) : page, context);
@@ -23,7 +42,18 @@ class TrainingMenuScreen extends StatelessWidget {
     return BlocProvider(
       create: (_) => sl<ExerciseMenuCubit>()..load(),
       child: Scaffold(
-        appBar: AppBar(title: const Text('Spotter')),
+        appBar: AppBar(
+          title: const Text('Spotter'),
+          actions: [
+            BlocBuilder<VoiceSettingsCubit, VoiceSettings>(
+              builder: (context, v) => IconButton(
+                tooltip: 'Voice coach',
+                icon: Icon(v.enabled ? Icons.record_voice_over_outlined : Icons.voice_over_off),
+                onPressed: () => Routing.routePush(const VoiceSettingsScreen(), context),
+              ),
+            ),
+          ],
+        ),
         body: BlocBuilder<ExerciseMenuCubit, ExerciseMenuState>(
           builder: (context, state) => ListView(
             padding: const EdgeInsets.all(16),
