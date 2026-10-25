@@ -6,6 +6,7 @@ import 'package:ai_trainer/core/utils/cv_math.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/exercise.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/services/rep_counter.dart';
 import 'package:ai_trainer/features/pose_coaching/presentation/bloc/trainer_bloc/trainer_bloc.dart';
+import 'package:ai_trainer/features/voice_coach/data/datasources/clip_text.dart';
 import 'package:ai_trainer/features/voice_coach/data/datasources/phrase_bank.dart';
 import 'package:ai_trainer/features/voice_coach/data/datasources/tts_engine.dart';
 import 'package:ai_trainer/features/voice_coach/data/datasources/voice_command_listener.dart';
@@ -308,7 +309,7 @@ class VoiceCoach {
       _enqueue(_say.personalBestForm(form), _pInfo, maxAge: 15);
     }
     if (top != null) _enqueue(_say.restTip(top), _pPraise, maxAge: 30);
-    if (_s.accessibility) _enqueue(_say.restLeft(st.restSeconds.round()), _pPraise, maxAge: 30);
+    if (_s.accessibility) _enqueue(_say.restStarted, _pPraise, maxAge: 30);
   }
 
   // ---------------------------------------------------------- rest / 3-2-1
@@ -415,7 +416,7 @@ class VoiceCoach {
       parts.add(_say.formScore(c.formScore.round()));
     }
 
-    if (parts.isNotEmpty) _enqueue(parts.join('. '), priority, maxAge: 1.8, key: 'rep');
+    if (parts.isNotEmpty) _enqueue(parts.join(ClipText.sentence), priority, maxAge: 1.8, key: 'rep');
   }
 
   void _onSetup(TrainerState st, RepCounter c, double t) {

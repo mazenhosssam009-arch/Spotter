@@ -48,6 +48,7 @@ class VoiceSettings extends Equatable {
     this.repGoal = 0,
     this.voiceCommands = false,
     this.accessibility = false,
+    this.egyptianClips = true,
   });
 
   /// false until the user picked a language once (the first-run picker)
@@ -82,6 +83,10 @@ class VoiceSettings extends Equatable {
   /// low-vision mode: the coach also reads the camera setup, form score and dialogs
   final bool accessibility;
 
+  /// Arabic: use the recorded Egyptian voices (Shakir / Salma) when the clip pack is in
+  /// the app (tool/make_egyptian_voice.dart). false = the phone's Arabic voice
+  final bool egyptianClips;
+
   bool get enabled => verbosity != CoachVerbosity.off;
   bool get arabic => language == CoachLanguage.arabicEgyptian;
 
@@ -103,6 +108,7 @@ class VoiceSettings extends Equatable {
     int? repGoal,
     bool? voiceCommands,
     bool? accessibility,
+    bool? egyptianClips,
   }) {
     return VoiceSettings(
       languageChosen: languageChosen ?? this.languageChosen,
@@ -121,6 +127,7 @@ class VoiceSettings extends Equatable {
       repGoal: repGoal ?? this.repGoal,
       voiceCommands: voiceCommands ?? this.voiceCommands,
       accessibility: accessibility ?? this.accessibility,
+      egyptianClips: egyptianClips ?? this.egyptianClips,
     );
   }
 
@@ -141,6 +148,7 @@ class VoiceSettings extends Equatable {
         'repGoal': repGoal,
         'voiceCommands': voiceCommands,
         'accessibility': accessibility,
+        'egyptianClips': egyptianClips,
       };
 
   static T _enum<T extends Enum>(List<T> values, Object? name, T fallback) {
@@ -171,6 +179,7 @@ class VoiceSettings extends Equatable {
       repGoal: j['repGoal'] is num ? (j['repGoal'] as num).toInt().clamp(0, 50) : 0,
       voiceCommands: j['voiceCommands'] == true,
       accessibility: j['accessibility'] == true,
+      egyptianClips: j['egyptianClips'] != false,
     );
   }
 
@@ -192,5 +201,6 @@ class VoiceSettings extends Equatable {
         repGoal,
         voiceCommands,
         accessibility,
+        egyptianClips,
       ];
 }

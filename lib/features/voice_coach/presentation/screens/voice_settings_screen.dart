@@ -22,6 +22,7 @@ class VoiceSettingsScreen extends StatefulWidget {
 class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
   final _engine = sl<TtsEngine>();
   VoiceSupport? _support;
+  bool _pack = false; // the recorded Egyptian voice is inside the app
   final _drag = <String, double>{}; // slider values while dragging (saved on release)
   CoachLanguage? _supportFor;
 
@@ -32,6 +33,9 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
     super.initState();
     _engine.refreshVoices(); // the user may have installed a voice meanwhile
     _loadSupport(_cubit.state);
+    _engine.hasEgyptianPack().then((v) {
+      if (mounted) setState(() => _pack = v);
+    });
   }
 
   Future<void> _loadSupport(VoiceSettings s) async {
@@ -155,7 +159,7 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
                 _chips<ArabicStyle>(
                   const [
                     (ArabicStyle.gymSlang, 'كلام جيم (ريب، سِت، فورم)'),
-                    (ArabicStyle.plain, 'مصري عادي (عدّة، جولة)'),
+                    (ArabicStyle.plain, 'مصري عادي (تكرارة، مجموعة)'),
                   ],
                   s.arabicStyle,
                   (v) => _set((x) => x.copyWith(arabicStyle: v)),
@@ -163,6 +167,18 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
               ],
             ]),
             _section('Voice', [
+              if (s.arabic) ...[
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('صوت مصري حقيقي (Egyptian voice)'),
+                  subtitle: Text(_pack
+                      ? 'Recorded Egyptian voices: Shakir (male) / Salma (female). Works offline.'
+                      : 'Not in this build yet: run tool/make_egyptian_voice.dart (see VOICE_COACH_SETUP.md).'),
+                  value: _pack && s.egyptianClips,
+                  onChanged: _pack ? (v) => _set((x) => x.copyWith(egyptianClips: v)) : null,
+                ),
+                const SizedBox(height: 8),
+              ],
               SegmentedButton<VoiceGender>(
                 segments: const [
                   ButtonSegment(value: VoiceGender.male, label: Text('Male'), icon: Icon(Icons.man)),
@@ -171,6 +187,11 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
                 selected: {s.gender},
                 onSelectionChanged: (v) => _set((x) => x.copyWith(gender: v.first, clearVoiceName: true)),
               ),
+              if (s.arabic && _pack && s.egyptianClips)
+                _note(Icons.record_voice_over_outlined,
+                    'Using the recorded Egyptian voice. The phone voice below is only used for '
+                    'anything that has no recording.',
+                    color: Sp.mint),
               if (voices.length > 1) ...[
                 const SizedBox(height: 12),
                 DropdownButton<String?>(

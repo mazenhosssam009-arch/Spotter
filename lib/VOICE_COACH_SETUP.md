@@ -95,3 +95,34 @@ lines from `phrase_bank.dart` once with a cloud voice (for example Azure `ar-EG-
 / `ar-EG-ShakirNeural`) and play those audio files instead. Numbers and summaries would
 still need TTS, or one clip per number. `TtsEngine.speak()` is the single place to plug
 that in.
+
+---
+
+# Real Egyptian voice (Shakir / Salma)
+
+Phone voices (Majed, Laila…) speak standard Arabic and sound wrong on Egyptian words.
+So every Arabic piece the coach says is recorded **once** with Microsoft Azure's Egyptian
+voices and bundled in the app. It works offline, with no internet during workouts.
+
+- `lib/features/voice_coach/data/datasources/clip_text.dart`: cuts sentences into pieces and names the clip files (shared with the tool).
+- `tool/make_egyptian_voice.dart`: lists every Arabic piece (all personalities, both Arabic styles) and downloads it from Azure in both voices.
+- `assets/voice/ar_eg/`: the clips (`male/`, `female/`), `manifest.json` and `pieces.txt` (which text each file says).
+- The engine plays clips in a row. A piece with no clip (for example new text you added later) is read by the phone voice, so nothing is ever silent.
+
+Packages: `flutter pub add just_audio`
+
+pubspec.yaml, under `flutter:`:
+```yaml
+  assets:
+    - assets/voice/ar_eg/
+    - assets/voice/ar_eg/male/
+    - assets/voice/ar_eg/female/
+```
+
+Make the clips (from the project folder):
+```
+dart run tool/make_egyptian_voice.dart --key YOUR_AZURE_KEY --region YOUR_REGION
+```
+On the free Azure tier this takes about 30–45 minutes (Azure allows about 20 requests a minute; the tool waits by itself).
+If you change Arabic text in `phrase_bank.dart`, run it again: only the new pieces are made.
+**Never put the key in the code or on GitHub.**

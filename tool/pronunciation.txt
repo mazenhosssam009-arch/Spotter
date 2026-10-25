@@ -1,0 +1,8 @@
+# How the Egyptian voice should SAY a word: written word = spoken spelling.
+# The words on the left must match the coach's text exactly (with its tashkeel).
+# A final ة is said as ا automatically (see FINAL_TAA_AS_ALEF in the script).
+# After changing this file run:  python tool/make_egyptian_voice_edge.py
+# If a fix sounds worse, delete its line and run the script again.
+
+# tested by ear: the plain spelling with ا sounds right
+شُوَيَّة = شُوَيّا
