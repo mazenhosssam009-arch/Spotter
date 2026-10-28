@@ -15,7 +15,8 @@ void main() {
   final manifest = jsonDecode(File(ClipText.manifest).readAsStringSync()) as Map<String, dynamic>;
   final pieces = allPieces();
 
-  for (final voice in const ['male', 'female']) {
+  // every voice in the manifest (only complete voices are added to it)
+  for (final voice in manifest.keys) {
     test('every Arabic piece has a recorded $voice clip', () {
       final keys = (manifest[voice] as List).map((e) => '$e').toSet();
       final missing = [

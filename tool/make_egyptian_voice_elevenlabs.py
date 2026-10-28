@@ -131,11 +131,16 @@ def tts(voice_id, text):
             if e.code == 400 and "language_code" in msg and "language_code" in body:
                 body.pop("language_code")  # this model works the language out itself
                 continue
-            if e.code == 400:
-                print(f"\nElevenLabs did not accept the request: {msg}")
+            if e.code == 402 or "paid" in msg.lower() or "subscription" in msg.lower():
+                print(f"\nElevenLabs needs a paid plan for this ({e.code}): {msg}")
+                sys.exit(1)
+            if e.code == 400 or e.code == 422:
+                print(f"\nElevenLabs did not accept the request ({e.code}): {msg}")
                 return None
             # 429 = too many at once / too fast: wait and try again
-            time.sleep(min(30, 3 * attempt))
+            wait = min(30, 3 * attempt)
+            print(f"\n  [ElevenLabs {e.code}, retry {attempt}/{RETRIES} in {wait}s]: {msg[:300]}", flush=True)
+            time.sleep(wait)
         except (urllib.error.URLError, TimeoutError) as e:
             print(f" [network: {e}, retry]", end="")
             time.sleep(3 * attempt)

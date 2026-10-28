@@ -6,6 +6,7 @@ import 'package:ai_trainer/core/widgets/spot_widgets.dart';
 import 'package:ai_trainer/features/voice_coach/data/datasources/phrase_bank.dart';
 import 'package:ai_trainer/features/voice_coach/data/datasources/tts_engine.dart';
 import 'package:ai_trainer/features/voice_coach/data/datasources/voice_command_listener.dart';
+import 'package:ai_trainer/features/voice_coach/domain/entities/egyptian_voice.dart';
 import 'package:ai_trainer/features/voice_coach/domain/entities/voice_settings.dart';
 import 'package:ai_trainer/features/voice_coach/presentation/cubit/voice_settings_cubit.dart';
 import 'package:ai_trainer/injection_container.dart';
@@ -23,6 +24,7 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
   final _engine = sl<TtsEngine>();
   VoiceSupport? _support;
   bool _pack = false; // the recorded Egyptian voice is inside the app
+  List<EgyptianVoice> _egVoices = const []; // recorded Egyptian voices in this build
   final _drag = <String, double>{}; // slider values while dragging (saved on release)
   CoachLanguage? _supportFor;
 
@@ -35,6 +37,9 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
     _loadSupport(_cubit.state);
     _engine.hasEgyptianPack().then((v) {
       if (mounted) setState(() => _pack = v);
+    });
+    _engine.egyptianVoices().then((v) {
+      if (mounted) setState(() => _egVoices = v);
     });
   }
 
@@ -172,8 +177,8 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
                   contentPadding: EdgeInsets.zero,
                   title: const Text('صوت مصري حقيقي (Egyptian voice)'),
                   subtitle: Text(_pack
-                      ? 'Recorded Egyptian voices: Shakir (male) / Salma (female). Works offline.'
-                      : 'Not in this build yet: run tool/make_egyptian_voice.dart (see VOICE_COACH_SETUP.md).'),
+                      ? 'Recorded Egyptian voices inside the app. Works offline.'
+                      : 'Not in this build yet: run tool/make_egyptian_voice_gemini.py (see VOICE_COACH_SETUP.md).'),
                   value: _pack && s.egyptianClips,
                   onChanged: _pack ? (v) => _set((x) => x.copyWith(egyptianClips: v)) : null,
                 ),
@@ -187,6 +192,25 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
                 selected: {s.gender},
                 onSelectionChanged: (v) => _set((x) => x.copyWith(gender: v.first, clearVoiceName: true)),
               ),
+              if (s.arabic && _pack && s.egyptianClips && _egVoices.any((v) => v.gender == s.gender)) ...[
+                const SizedBox(height: 12),
+                DropdownButton<String>(
+                  isExpanded: true,
+                  value: _egVoices.any((v) => v.id == s.egyptianVoice && v.gender == s.gender)
+                      ? s.egyptianVoice
+                      : EgyptianVoice.defaultFor(s.gender).id,
+                  items: [
+                    for (final v in _egVoices.where((v) => v.gender == s.gender))
+                      DropdownMenuItem<String>(
+                        value: v.id,
+                        child: Text('Egyptian voice: ${v.name}${v.isDefault ? ' (default)' : ''}'),
+                      ),
+                  ],
+                  onChanged: (id) => _set((x) => EgyptianVoice.byId(id)?.isDefault ?? true
+                      ? x.copyWith(clearEgyptianVoice: true)
+                      : x.copyWith(egyptianVoice: id)),
+                ),
+              ],
               if (s.arabic && _pack && s.egyptianClips)
                 _note(Icons.record_voice_over_outlined,
                     'Using the recorded Egyptian voice. The phone voice below is only used for '

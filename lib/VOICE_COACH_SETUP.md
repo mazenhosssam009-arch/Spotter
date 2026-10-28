@@ -154,3 +154,37 @@ python tool/make_egyptian_voice_elevenlabs.py --male ID --female ID [--no-tashke
 - Re-running only records new or changed pieces (`assets/voice/ar_eg/recorded_elevenlabs.json`).
 - Giving only `--male` keeps the old female clips (and the other way round).
 - Do not run `make_egyptian_voice_edge.py` afterwards: it would record the Microsoft voices over them.
+
+---
+
+# Egyptian voices with Google Gemini (current)
+
+Gemini text-to-speech sounded the most like a normal Egyptian. Six voices are recorded once
+and bundled in the app (offline):
+
+| Voice | Gender | |
+|---|---|---|
+| Puck | male | **default** |
+| Zephyr | female | **default** |
+| Fenrir, Orus | male | optional |
+| Kore, Leda | female | optional |
+
+The user picks Male / Female in the voice settings, and (Arabic) an "Egyptian voice"
+dropdown lists the voices of that gender that are inside the build. Code:
+`features/voice_coach/domain/entities/egyptian_voice.dart` (the list and defaults),
+`TtsEngine._clipFolder` (picked voice > default of the gender > the older Shakir / Salma
+clips in `male/` `female/` > the phone voice). A voice only shows up once all its clips are
+recorded (it is then listed in `assets/voice/ar_eg/manifest.json`).
+
+Record (key from aistudio.google.com > Get API key; never put it in the code):
+```
+$env:GEMINI_API_KEY = "your key"
+dart run tool/make_egyptian_voice.dart --list
+python tool/make_egyptian_voice_gemini.py --record            # all six, Puck and Zephyr first
+python tool/make_egyptian_voice_gemini.py --record puck zephyr
+```
+- About 20 lines per request; the audio is cut at the pauses (`tool/audio_split.py`) and
+  Gemini listens to every clip to check it says its line (`--no-check` skips that).
+- The free plan has a small daily limit. When it is reached the script stops and saves; run
+  the same command the next day and it continues (`assets/voice/ar_eg/recorded_gemini.json`).
+- Needs `python -m pip install lameenc` (MP3 encoder) and, on PCs with certificate errors, `truststore`.

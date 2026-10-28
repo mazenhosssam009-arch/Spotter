@@ -8,6 +8,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:just_audio/just_audio.dart';
 
 import 'package:ai_trainer/features/voice_coach/data/datasources/clip_text.dart';
+import 'package:ai_trainer/features/voice_coach/domain/entities/egyptian_voice.dart';
 import 'package:ai_trainer/features/voice_coach/domain/entities/voice_settings.dart';
 
 /// one voice installed on the phone
@@ -299,14 +300,30 @@ class TtsEngine {
   /// the recorded Egyptian voice is inside the app
   Future<bool> hasEgyptianPack() async => (await _loadClips()).values.any((k) => k.isNotEmpty);
 
-  /// which recorded voice to use, null = the phone voice
+  /// the recorded Egyptian voices that are inside this build (a voice is only listed in
+  /// manifest.json once all its clips are recorded)
+  Future<List<EgyptianVoice>> egyptianVoices() async {
+    final clips = await _loadClips();
+    return [for (final v in EgyptianVoice.all) if (clips[v.id]?.isNotEmpty ?? false) v];
+  }
+
+  /// which recorded voice to use, null = the phone voice. The picked voice, else the default
+  /// of the gender (Puck / Zephyr), else the older Shakir / Salma clips, else the other gender
   Future<String?> _clipFolder(VoiceSettings s) async {
     if (!s.arabic || !s.egyptianClips || kIsWeb) return null;
     final clips = await _loadClips();
-    final want = s.gender == VoiceGender.male ? 'male' : 'female';
-    final other = want == 'male' ? 'female' : 'male';
-    if (clips[want]?.isNotEmpty ?? false) return want;
-    if (clips[other]?.isNotEmpty ?? false) return other;
+    final other = s.gender == VoiceGender.male ? VoiceGender.female : VoiceGender.male;
+    final picked = EgyptianVoice.byId(s.egyptianVoice);
+    final order = [
+      if (picked != null && picked.gender == s.gender) picked.id,
+      EgyptianVoice.defaultFor(s.gender).id,
+      EgyptianVoice.legacyFolder(s.gender),
+      EgyptianVoice.defaultFor(other).id,
+      EgyptianVoice.legacyFolder(other),
+    ];
+    for (final f in order) {
+      if (clips[f]?.isNotEmpty ?? false) return f;
+    }
     return null;
   }
 

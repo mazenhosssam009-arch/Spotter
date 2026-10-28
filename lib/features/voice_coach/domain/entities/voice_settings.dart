@@ -49,6 +49,7 @@ class VoiceSettings extends Equatable {
     this.voiceCommands = false,
     this.accessibility = false,
     this.egyptianClips = true,
+    this.egyptianVoice,
   });
 
   /// false until the user picked a language once (the first-run picker)
@@ -87,6 +88,10 @@ class VoiceSettings extends Equatable {
   /// the app (tool/make_egyptian_voice.dart). false = the phone's Arabic voice
   final bool egyptianClips;
 
+  /// Arabic: which recorded Egyptian voice (EgyptianVoice.id, e.g. 'puck').
+  /// null = the default voice of [gender] (Puck / Zephyr). Cleared when the gender changes.
+  final String? egyptianVoice;
+
   bool get enabled => verbosity != CoachVerbosity.off;
   bool get arabic => language == CoachLanguage.arabicEgyptian;
 
@@ -109,7 +114,11 @@ class VoiceSettings extends Equatable {
     bool? voiceCommands,
     bool? accessibility,
     bool? egyptianClips,
+    String? egyptianVoice,
+    bool clearEgyptianVoice = false,
   }) {
+    // a voice of the other gender makes no sense: changing the gender goes back to its default
+    final genderChanged = gender != null && gender != this.gender;
     return VoiceSettings(
       languageChosen: languageChosen ?? this.languageChosen,
       language: language ?? this.language,
@@ -128,6 +137,7 @@ class VoiceSettings extends Equatable {
       voiceCommands: voiceCommands ?? this.voiceCommands,
       accessibility: accessibility ?? this.accessibility,
       egyptianClips: egyptianClips ?? this.egyptianClips,
+      egyptianVoice: clearEgyptianVoice ? null : (egyptianVoice ?? (genderChanged ? null : this.egyptianVoice)),
     );
   }
 
@@ -149,6 +159,7 @@ class VoiceSettings extends Equatable {
         'voiceCommands': voiceCommands,
         'accessibility': accessibility,
         'egyptianClips': egyptianClips,
+        'egyptianVoice': egyptianVoice,
       };
 
   static T _enum<T extends Enum>(List<T> values, Object? name, T fallback) {
@@ -180,6 +191,7 @@ class VoiceSettings extends Equatable {
       voiceCommands: j['voiceCommands'] == true,
       accessibility: j['accessibility'] == true,
       egyptianClips: j['egyptianClips'] != false,
+      egyptianVoice: j['egyptianVoice'] is String ? j['egyptianVoice'] as String : null,
     );
   }
 
@@ -202,5 +214,6 @@ class VoiceSettings extends Equatable {
         voiceCommands,
         accessibility,
         egyptianClips,
+        egyptianVoice,
       ];
 }

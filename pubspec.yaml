@@ -75,6 +75,13 @@ flutter:
     - assets/voice/ar_eg/
     - assets/voice/ar_eg/male/
     - assets/voice/ar_eg/female/
+    # Egyptian voices recorded with Gemini (tool/make_egyptian_voice_gemini.py)
+    - assets/voice/ar_eg/puck/
+    - assets/voice/ar_eg/fenrir/
+    - assets/voice/ar_eg/orus/
+    - assets/voice/ar_eg/zephyr/
+    - assets/voice/ar_eg/kore/
+    - assets/voice/ar_eg/leda/
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
