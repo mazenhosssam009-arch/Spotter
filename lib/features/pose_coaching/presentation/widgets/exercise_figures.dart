@@ -38,6 +38,11 @@ class FigPose {
     this.bar = 0,
     this.flare = 0,
     this.lockBar = false,
+    this.stance = 0.32,
+    this.knees = 0,
+    this.neck = 0,
+    this.barX = 0,
+    this.hipLift = 0,
   });
 
   final double torso; // hip -> shoulder, from vertical (forward +)
@@ -49,6 +54,11 @@ class FigPose {
   final double bar; // lying only: bar height 0 (chest) .. 1 (lockout), straight vertical path
   final double flare; // degrees: lying = elbows away from the body, standing = arms out to the side
   final bool lockBar; // standing: wrists follow a straight vertical bar line (deadlift)
+  final double stance; // half distance between the feet (0.32 = hip width, ~0.48 = shoulder width)
+  final double knees; // knees pushed out (+) or caving in (-), sideways
+  final double neck; // extra head tilt in degrees (+ = chin dropped to the chest)
+  final double barX; // the bar line moved forward (+) / back (-) from where it belongs
+  final double hipLift; // lying only: the hips lifted off the bench
 
   static FigPose lerp(FigPose a, FigPose b, double t) {
     double l(double x, double y) => x + (y - x) * t;
@@ -62,6 +72,11 @@ class FigPose {
       bar: l(a.bar, b.bar),
       flare: l(a.flare, b.flare),
       lockBar: a.lockBar,
+      stance: l(a.stance, b.stance),
+      knees: l(a.knees, b.knees),
+      neck: l(a.neck, b.neck),
+      barX: l(a.barX, b.barX),
+      hipLift: l(a.hipLift, b.hipLift),
     );
   }
 }
@@ -99,23 +114,45 @@ class FigStep {
 class Pz {
   Pz._();
   // --- biceps curl (elbows pinned close to the body) ---
-  static const curlDown = FigPose(upperArm: 4, forearm: 4, flare: 5);
-  static const curlUp = FigPose(upperArm: 4, forearm: 155, flare: 5);
+  // bottom = 30 deg of elbow flexion (slight bend, the weight beside the front of the thigh),
+  // top = 130 deg (forearm past horizontal, the weight in front of the shoulder)
+  static const curlDown = FigPose(upperArm: 2, forearm: 30, flare: 5);
+  static const curlUp = FigPose(upperArm: 2, forearm: 132, flare: 5);
   static const curlPin = FigPose(upperArm: 0, forearm: 90, flare: 5);
   static const curlSwing = FigPose(torso: -22, upperArm: 28, forearm: 140, flare: 5);
-  // --- squat (arms forward for balance) ---
-  static const squatStand = FigPose(upperArm: 88, forearm: 88, flare: -12);
-  static const squatQuarter = FigPose(torso: 20, thigh: 40, shin: -15, upperArm: 88, forearm: 88, flare: -12);
-  static const squatDown = FigPose(torso: 40, thigh: 85, shin: -35, upperArm: 88, forearm: 88, flare: -12);
+  static const curlElbowFwd = FigPose(upperArm: 50, forearm: 165, flare: 5);
+  // --- squat (feet shoulder-width, knees track out over the toes, hands together at the chest) ---
+  static const squatStand = FigPose(upperArm: 22, forearm: 160, flare: -26, stance: 0.48);
+  static const squatQuarter =
+      FigPose(torso: 20, thigh: 40, shin: -15, upperArm: 32, forearm: 158, flare: -26, stance: 0.48);
+  static const squatDown =
+      FigPose(torso: 40, thigh: 85, shin: -35, upperArm: 45, forearm: 155, flare: -26, stance: 0.48);
+  // mistakes
+  static const squatValgus =
+      FigPose(torso: 35, thigh: 75, shin: -30, upperArm: 42, forearm: 155, flare: -26, stance: 0.48, knees: -0.36);
+  static const squatLean =
+      FigPose(torso: 72, thigh: 72, shin: -14, upperArm: 30, forearm: 30, flare: -12, stance: 0.48, neck: 30);
+  static const squatToes =
+      FigPose(torso: 12, thigh: 70, shin: -55, upperArm: 30, forearm: 158, flare: -26, stance: 0.48);
   // --- deadlift (the bar goes straight up and down over the mid foot, arms stay straight) ---
   static const dlStand = FigPose(lockBar: true);
   static const dlHinge = FigPose(torso: 65, thigh: 18, shin: -8, lockBar: true);
-  static const dlBottom = FigPose(torso: 65, thigh: 62, shin: -12, lockBar: true);
-  // --- bench press (lying, head to the left): straight bar path, elbows ~45 degrees from the body.
+  static const dlBottom = FigPose(torso: 62, thigh: 64, shin: -14, lockBar: true);
+  // mistakes
+  static const dlRound = FigPose(torso: 82, thigh: 50, shin: -8, lockBar: true, neck: 45);
+  static const dlBarAway = FigPose(torso: 70, thigh: 40, shin: -6, lockBar: true, barX: 0.45);
+  static const dlLeanBack = FigPose(torso: -20, thigh: -6, lockBar: true, neck: -15);
+  static const dlStiff = FigPose(torso: 85, thigh: 6, shin: 0, lockBar: true);
+  // --- bench press (lying, head to the left): the bar touches the lower chest and is pressed back
+  //     over the shoulders, elbows ~45 degrees from the body.
   //     Change `flare` to taste (30 = tucked, 45 = standard, 80 = flared / a mistake) ---
-  static const benchUp = FigPose(torso: -90, thigh: 110, shin: 20, lying: true, bar: 1, flare: 45);
-  static const benchLow = FigPose(torso: -90, thigh: 110, shin: 20, lying: true, bar: 0, flare: 45);
-  static const benchLowFlared = FigPose(torso: -90, thigh: 110, shin: 20, lying: true, bar: 0, flare: 80);
+  static const benchUp = FigPose(torso: -90, thigh: 99, shin: -15, lying: true, bar: 1, flare: 45);
+  static const benchLow = FigPose(torso: -90, thigh: 99, shin: -15, lying: true, bar: 0, flare: 45);
+  // mistakes
+  static const benchLowFlared = FigPose(torso: -90, thigh: 99, shin: -15, lying: true, bar: 0, flare: 85);
+  static const benchNeck = FigPose(torso: -90, thigh: 99, shin: -15, lying: true, bar: 0, flare: 80, barX: -0.42);
+  static const benchHipsUp =
+      FigPose(torso: -103, thigh: 72, shin: -37, lying: true, bar: 0.3, flare: 45, hipLift: 0.3);
 }
 
 // ------------------------------------------------------------------------------------------
@@ -151,7 +188,8 @@ class _Body {
 }
 
 const _thigh = 1.0, _shin = 1.0, _torso = 1.3, _upperArm = 0.8, _foreArm = 0.75;
-const _anchorX = 1.6, _ankleY = -0.14;
+const _anchorX = 1.6, _ankleY = -0.14, _benchHipY = -0.95;
+const _shoulderZ = 0.53; // half the distance between the shoulder joints (about 40 cm apart)
 
 Offset _down(double deg) => Offset(math.sin(deg * math.pi / 180), math.cos(deg * math.pi / 180));
 Offset _up(double deg) => Offset(math.sin(deg * math.pi / 180), -math.cos(deg * math.pi / 180));
@@ -174,7 +212,7 @@ _Body _fk3(FigPose p, {bool dumbbells = false}) {
   final double hx, hy;
   if (p.lying) {
     hx = 1.9;
-    hy = -0.74;
+    hy = _benchHipY - p.hipLift;
   } else {
     // the feet stay where they are, the hip goes up and down with the knee angles
     final a = _down(p.thigh), b = _down(p.shin);
@@ -183,7 +221,8 @@ _Body _fk3(FigPose p, {bool dumbbells = false}) {
   }
   final hipXY = Offset(hx, hy);
   final shXY = hipXY + _up(p.torso) * _torso;
-  final headXY = shXY + _up(p.lying ? p.torso : p.torso * 0.75) * 0.60;
+  // the neck stays roughly in line with the back (a neutral spine), it does not crank up
+  final headXY = shXY + _up(p.lying ? p.torso : p.torso * 0.88 + p.neck * 0.3) * 0.60;
   final fl = p.flare * math.pi / 180;
   final ua = p.upperArm * math.pi / 180, fa = p.forearm * math.pi / 180;
 
@@ -192,23 +231,26 @@ _Body _fk3(FigPose p, {bool dumbbells = false}) {
     final kXY = hipXY + _down(p.thigh) * _thigh;
     final aXY = kXY + _down(p.shin) * _shin;
     final hip = _V3(hx, hy, sd * 0.23);
-    final knee = _V3(kXY.dx, kXY.dy, sd * 0.30);
-    final ankle = _V3(aXY.dx, aXY.dy, sd * 0.32);
+    // the knees track out over the toes as they bend (p.knees < 0 = caving in)
+    final bend = p.lying ? 0.0 : math.sin(_cl(p.thigh, 0, 90) * math.pi / 180);
+    final knee = _V3(kXY.dx, kXY.dy, sd * ((0.23 + p.stance) / 2 + 0.15 * bend + p.knees));
+    final ankle = _V3(aXY.dx, aXY.dy, sd * p.stance);
     final shJ = shXY - _up(p.torso) * 0.17; // the shoulder joint is below the top of the chest
-    final sh = _V3(shJ.dx, shJ.dy, sd * 0.68);
+    final sh = _V3(shJ.dx, shJ.dy, sd * _shoulderZ);
 
     _V3 el, wr;
     if (p.lying) {
-      // the wrists travel on a straight vertical line (the bar path)
-      final w = _V3(sh.x + 0.38, -1.22 + (-2.20 + 1.22) * p.bar, sd * (dumbbells ? 0.60 : 0.78));
+      // the bar touches the lower chest and finishes over the shoulder joint (a slight diagonal)
+      final w = _V3(sh.x + 0.44 - 0.36 * p.bar + p.barX * (1 - p.bar), sh.y - 0.48 - 0.98 * p.bar,
+          sd * (dumbbells ? 0.52 : 0.70));
       final r = _ik(sh, w, _upperArm, _foreArm, _V3(math.cos(fl), 0.25, sd * math.sin(fl)));
       el = r.$1;
       wr = r.$2;
     } else if (p.lockBar) {
-      final bx = _anchorX + 0.35;
+      final bx = _anchorX + 0.35 + p.barX;
       final dx = _cl(bx - sh.x, -1.4, 1.4);
       final reach = (_upperArm + _foreArm) * 0.985;
-      final w = _V3(bx, sh.y + math.sqrt(reach * reach - dx * dx), sd * 0.68);
+      final w = _V3(bx, sh.y + math.sqrt(reach * reach - dx * dx), sd * 0.56); // just outside the legs
       final r = _ik(sh, w, _upperArm, _foreArm, _V3(-0.2, 0, sd));
       el = r.$1;
       wr = r.$2;
@@ -222,7 +264,7 @@ _Body _fk3(FigPose p, {bool dumbbells = false}) {
     _V3(hx, hy, 0),
     _V3(shXY.dx, shXY.dy, 0),
     _V3(headXY.dx, headXY.dy, 0),
-    p.lying ? p.torso : p.torso * 0.35,
+    p.lying ? p.torso : p.torso * 0.6 + p.neck,
     sides,
   );
 }
@@ -284,27 +326,33 @@ void _ln(Path p, Offset o) => p.lineTo(o.dx, o.dy);
 void _cb(Path p, Offset a, Offset b, Offset c) => p.cubicTo(a.dx, a.dy, b.dx, b.dy, c.dx, c.dy);
 
 // body shapes: half widths in character units. F = front, B = back, L = left/right (sideways)
-const _Prof _thighF = [(0.0, 0.30), (0.3, 0.35), (0.65, 0.27), (1.0, 0.19)];
-const _Prof _thighB = [(0.0, 0.31), (0.3, 0.30), (0.7, 0.22), (1.0, 0.18)];
-const _Prof _thighL = [(0.0, 0.28), (0.3, 0.30), (0.65, 0.23), (1.0, 0.18)];
+// real athletic proportions: 1 unit is about 38 cm (torso 1.3 = hip to shoulder)
+const _Prof _thighF = [(0.0, 0.25), (0.3, 0.28), (0.65, 0.22), (1.0, 0.16)];
+const _Prof _thighB = [(0.0, 0.26), (0.3, 0.25), (0.7, 0.19), (1.0, 0.15)];
+const _Prof _thighL = [(0.0, 0.23), (0.3, 0.24), (0.65, 0.19), (1.0, 0.15)];
 const _Prof _shinF = [(0.0, 0.15), (0.2, 0.14), (0.6, 0.11), (1.0, 0.08)];
 const _Prof _shinB = [(0.0, 0.14), (0.3, 0.21), (0.62, 0.14), (1.0, 0.08)];
 const _Prof _shinL = [(0.0, 0.13), (0.3, 0.16), (0.62, 0.12), (1.0, 0.07)];
 const _Prof _torsoF = [(0.0, 0.22), (0.10, 0.33), (0.30, 0.39), (0.50, 0.33), (0.75, 0.28), (1.0, 0.29)];
 const _Prof _torsoB = [(0.0, 0.22), (0.08, 0.32), (0.30, 0.36), (0.55, 0.29), (0.82, 0.28), (1.0, 0.31)];
-const _Prof _torsoL = [(0.0, 0.44), (0.06, 0.64), (0.28, 0.66), (0.55, 0.50), (0.80, 0.43), (1.0, 0.45)];
-const _Prof _shortsF = [(0.0, 0.30), (0.18, 0.35), (0.58, 0.37), (0.66, 0.35)];
-const _Prof _shortsB = [(0.0, 0.32), (0.15, 0.37), (0.4, 0.35), (0.58, 0.31), (0.66, 0.29)];
-const _Prof _shortsL = [(0.0, 0.46), (0.2, 0.52), (0.58, 0.55), (0.66, 0.55)];
+const _Prof _torsoL = [(0.0, 0.40), (0.06, 0.55), (0.28, 0.57), (0.55, 0.47), (0.80, 0.41), (1.0, 0.43)];
+// shorts: the seat (waist to crotch) and one leg per thigh (the top 46 % of the thigh)
+const _Prof _seatF = [(0.0, 0.29), (0.5, 0.32), (1.0, 0.31)];
+const _Prof _seatB = [(0.0, 0.31), (0.5, 0.34), (1.0, 0.33)];
+const _Prof _seatL = [(0.0, 0.44), (0.5, 0.47), (1.0, 0.47)];
+const _Prof _shortLegF = [(0.0, 0.29), (0.6, 0.31), (1.0, 0.28)];
+const _Prof _shortLegB = [(0.0, 0.30), (0.6, 0.29), (1.0, 0.26)];
+const _Prof _shortLegL = [(0.0, 0.27), (0.6, 0.28), (1.0, 0.26)];
+const _shortLeg = 0.46;
 const _Prof _neckF = [(0.0, 0.14), (1.0, 0.18)];
 const _Prof _neckB = [(0.0, 0.15), (1.0, 0.22)];
-const _Prof _neckL = [(0.0, 0.16), (1.0, 0.21)];
-const _Prof _armF = [(0.0, 0.22), (0.3, 0.26), (0.55, 0.23), (0.8, 0.16), (1.0, 0.125)];
-const _Prof _armB = [(0.0, 0.21), (0.35, 0.24), (0.7, 0.20), (1.0, 0.125)];
-const _Prof _armL = [(0.0, 0.21), (0.35, 0.22), (0.8, 0.16), (1.0, 0.12)];
-const _Prof _foreF = [(0.0, 0.16), (0.25, 0.20), (0.7, 0.125), (1.0, 0.08)];
-const _Prof _foreB = [(0.0, 0.15), (0.25, 0.17), (0.7, 0.105), (1.0, 0.07)];
-const _Prof _foreL = [(0.0, 0.15), (0.25, 0.18), (0.7, 0.115), (1.0, 0.075)];
+const _Prof _neckL = [(0.0, 0.135), (1.0, 0.19)];
+const _Prof _armF = [(0.0, 0.17), (0.3, 0.18), (0.55, 0.165), (0.8, 0.125), (1.0, 0.10)];
+const _Prof _armB = [(0.0, 0.16), (0.35, 0.175), (0.7, 0.145), (1.0, 0.10)];
+const _Prof _armL = [(0.0, 0.16), (0.35, 0.16), (0.8, 0.12), (1.0, 0.095)];
+const _Prof _foreF = [(0.0, 0.12), (0.25, 0.145), (0.7, 0.095), (1.0, 0.065)];
+const _Prof _foreB = [(0.0, 0.115), (0.25, 0.125), (0.7, 0.085), (1.0, 0.06)];
+const _Prof _foreL = [(0.0, 0.115), (0.25, 0.135), (0.7, 0.09), (1.0, 0.065)];
 
 // colours: rim, light, base, shade, deep
 const List<Color> _skin = [Color(0xFFB5764F), Color(0xFFE8B08A), Color(0xFFD39870), Color(0xFFA8693F), Color(0xFF7C4A2C)];
@@ -485,15 +533,16 @@ class _FigDraw {
   }
 
   /// the silhouette of an ellipsoid with the given 3D half axes
-  void ellipsoid(_V3 c, List<(_V3, double)> axes, Paint paint) {
+  Rect ellipsoid(_V3 c, List<(_V3, double)> axes, Paint paint) {
     var rx = 0.0, ry = 0.0;
     for (final a in axes) {
       final v = prv(a.$1) * a.$2;
       rx += v.dx * v.dx;
       ry += v.dy * v.dy;
     }
-    canvas.drawOval(
-        Rect.fromCenter(center: mv(c), width: 2 * math.sqrt(rx) * s, height: 2 * math.sqrt(ry) * s), paint);
+    final r = Rect.fromCenter(center: mv(c), width: 2 * math.sqrt(rx) * s, height: 2 * math.sqrt(ry) * s);
+    canvas.drawOval(r, paint);
+    return r;
   }
 
   // ---------------------------------------------------------------------------------------
@@ -549,7 +598,7 @@ class _FigDraw {
       Rect.fromLTRB(m(Offset(cxp - halfW, y0)).dx, m(Offset(0, y0)).dy, m(Offset(cxp + halfW, y1)).dx, m(Offset(0, y1)).dy);
 
   void bench(_Body bd) {
-    final top = bd.hip.y + 0.30;
+    final top = _benchHipY + 0.30;
     final bx0 = bd.hip.x - 1.95, bx1 = bd.hip.x + 0.5;
     const legc = Color(0xFF2A3230);
     for (final lx in [bx0 + 0.3, bx1 - 0.3]) {
@@ -584,6 +633,18 @@ class _FigDraw {
     crv([surf(sd.hip, sd.knee, 0.25, 1, 0.17), surf(sd.hip, sd.knee, 0.5, 1, 0.2), surf(sd.hip, sd.knee, 0.75, 1, 0.13)],
         _skin[1], 0.035, 0.45, tf);
     crv([surf(sd.hip, sd.knee, 0.45, -1, 0.04), surf(sd.hip, sd.knee, 0.8, -1, 0.03)], _skin[4], 0.015, 0.3, tb);
+
+    // this thigh's leg of the shorts, with its hem
+    final hemC = sd.hip + (sd.knee - sd.hip) * _shortLeg;
+    final sl = tube(sd.hip, hemC, _shortLegF, _shortLegB, _shortLegL, _shortsCol, capA: false, capB: false, dark: dk);
+    final sf = sl.f, sll = (hemC - sd.hip).unit.cross(sf).unit;
+    List<_V3> hem(double a0, double a1, double rF) => [
+          for (var i = 0; i <= 6; i++)
+            hemC + sf * (rF * math.cos(a0 + (a1 - a0) * i / 6)) + sll * (0.26 * math.sin(a0 + (a1 - a0) * i / 6))
+        ];
+    crv(hem(-math.pi / 2, math.pi / 2, 0.28), const Color(0xFF5F6F8A), 0.02, 0.9, visF(sf));
+    crv(hem(math.pi / 2, 3 * math.pi / 2, 0.26), const Color(0xFF5F6F8A), 0.02, 0.9, visB(sf));
+
     final ang = projAng(sd.hip, sd.knee);
     if (focus.contains(FigMuscle.quads)) glowAt(surf(sd.hip, sd.knee, 0.5, 1, 0.12), 0.2, 0.34, ang, th.path, tf);
     if (focus.contains(FigMuscle.hams)) glowAt(surf(sd.hip, sd.knee, 0.5, -1, 0.1), 0.2, 0.34, ang, th.path, tb);
@@ -638,27 +699,33 @@ class _FigDraw {
   // ---- shorts (cover the lower edge of the shirt and the top of the thighs)
   void shortsDraw(_Body bd) {
     final kneeC = _V3(bd.sides[0].knee.x, bd.sides[0].knee.y, 0);
-    final end = bd.hip + (kneeC - bd.hip) * 0.62;
+    final end = bd.hip + (kneeC - bd.hip) * 0.18; // the seat; each thigh has its own leg (see leg())
     final start = bd.hip + (bd.shoulder - bd.hip) * 0.12;
     // pelvis: a round block at the hip joint that closes the gap where the torso and the
-    // thighs meet at an angle (squat, deadlift, bench)
+    // thighs meet at an angle (squat, deadlift, bench). It is cut off at the waistband, so it
+    // never shows as a dome over the shirt.
     final pv = bd.hip + (bd.shoulder - bd.hip) * 0.04;
     final pc0 = mv(pv);
-    ellipsoid(pv, const [(_V3(1, 0, 0), 0.36), (_V3(0, 1, 0), 0.36), (_V3(0, 0, 1), 0.52)],
+    final ws = mv(start), wd = mv(bd.hip) - ws;
+    canvas.save();
+    if (wd.distance > 1) {
+      final d = wd / wd.distance, n = Offset(-d.dy, d.dx) * 1e4;
+      canvas.clipPath(Path()..addPolygon([ws + n, ws - n, ws - n + d * 1e4, ws + n + d * 1e4], true));
+    }
+    ellipsoid(pv, const [(_V3(1, 0, 0), 0.33), (_V3(0, 1, 0), 0.34), (_V3(0, 0, 1), 0.46)],
         _shaderP(ui.Gradient.linear(Offset(pc0.dx, pc0.dy - 0.36 * s), Offset(pc0.dx, pc0.dy + 0.36 * s),
             [_shortsCol[1], _shortsCol[2], _shortsCol[3]], const [0.0, 0.5, 1.0])));
-    final r = tube(start, end, _shortsF, _shortsB, _shortsL, _shortsCol, capA: false, capB: false);
+    canvas.restore();
+    final r = tube(start, end, _seatF, _seatB, _seatL, _shortsCol, capA: false, capB: false);
     const trim = Color(0xFF5F6F8A);
     final f = r.f;
     final l = (end - start).unit.cross(f).unit;
     final vf = visF(f), vb = visB(f);
-    // waistband and hem: arcs around the body (front half / back half)
+    // waistband: arcs around the body (front half / back half)
     List<_V3> arc(_V3 c, double rF, double rL, double a0, double a1) =>
         [for (var i = 0; i <= 6; i++) c + f * (rF * math.cos(a0 + (a1 - a0) * i / 6)) + l * (rL * math.sin(a0 + (a1 - a0) * i / 6))];
-    crv(arc(start, 0.34, 0.44, -math.pi / 2, math.pi / 2), trim, 0.025, 0.8, vf);
-    crv(arc(start, 0.45, 0.44, math.pi / 2, 3 * math.pi / 2), trim, 0.025, 0.8, vb);
-    crv(arc(end, 0.41, 0.50, -math.pi / 2, math.pi / 2), trim, 0.02, 0.9, vf);
-    crv(arc(end, 0.35, 0.50, math.pi / 2, 3 * math.pi / 2), trim, 0.02, 0.9, vb);
+    crv(arc(start, 0.30, 0.44, -math.pi / 2, math.pi / 2), trim, 0.025, 0.8, vf);
+    crv(arc(start, 0.32, 0.44, math.pi / 2, 3 * math.pi / 2), trim, 0.025, 0.8, vb);
     if (focus.contains(FigMuscle.glutes)) {
       for (final sd in bd.sides) {
         glowAt(surf(sd.hip, sd.knee, 0.12, -1, 0.2), 0.3, 0.3, projAng(sd.hip, sd.knee), r.path, vb);
@@ -671,8 +738,8 @@ class _FigDraw {
     tube(bd.head + d * 0.18, bd.shoulder - d * 0.05, _neckF, _neckB, _neckL, _skin, capA: false, capB: false);
   }
 
-  // ---- head: an ellipsoid with a hair cap, a face when it looks at us and the original
-  //      profile (nose, chin, beard) when we see it from the side
+  // ---- head: an ellipsoid with short hair, a face when it looks at us and the
+  //      profile (nose, lips, chin) when we see it from the side
   void head(_Body bd) {
     const hs = 0.70; // head height in character units
     final rot = bd.headRot * math.pi / 180;
@@ -682,14 +749,16 @@ class _FigDraw {
     final hc = bd.head;
     final fv = depv(fwd); // > 0: the face is turned to the camera
     final front = _cl(fv, 0, 1), back = _cl(-fv, 0, 1);
-    final profA = _cl((cy.abs() - 0.55) / 0.35, 0, 1);
+    // a short switch between the front face and the side profile, so the two never show
+    // half-transparent on top of each other (a ghost face) at a 3/4 angle
+    final profA = _cl((cy.abs() - 0.74) / 0.06, 0, 1);
     final cc = mv(hc);
 
     // skull
     final skinShader = _shaderP(ui.Gradient.linear(
         Offset(cc.dx + 0.4 * hs * s, cc.dy), Offset(cc.dx - 0.4 * hs * s, cc.dy),
         [_skin[2], _skin[1], _skin[2], _skin[3]], const [0.0, 0.25, 0.65, 1.0]));
-    ellipsoid(hc, [(fwd, 0.44 * hs), (upH, 0.52 * hs), (lat, 0.36 * hs)], skinShader);
+    final skull = ellipsoid(hc, [(fwd, 0.44 * hs), (upH, 0.52 * hs), (lat, 0.36 * hs)], skinShader);
 
     // ears (only the ones on the side of the head we can see)
     for (final sd in const [1.0, -1.0]) {
@@ -700,35 +769,58 @@ class _FigDraw {
       }
     }
 
-    // hair cap: only the top from the front, more of it from the back
+    // short hair that hugs the top of the skull (front), down to ear level at the back,
+    // so it never floats like a cap or covers the head like a hood
     const hairCol = Color(0xFF2B1D14);
     final hairA = 1 - profA;
     if (hairA > 0.02) {
       ellipsoid(
-        hc + upH * (hs * (0.36 - 0.36 * back)) - fwd * (0.04 * hs),
-        [(fwd, 0.47 * hs), (lat, 0.39 * hs), (upH, hs * (0.15 + 0.32 * back))],
+        hc + upH * (hs * (0.38 - 0.24 * back)) - fwd * (0.05 * hs),
+        [(fwd, 0.43 * hs), (lat, 0.365 * hs), (upH, hs * (0.19 + 0.17 * back))],
         _fillP(hairCol, hairA),
       );
     }
 
-    // face (front view)
+    // face (front view): clean-shaven, natural proportions
     final fa = front * (1 - profA * 0.9);
     if (fa > 0.04) {
+      // the features stay inside the outline of the head (the far eye at a 3/4 angle)
+      canvas.save();
+      canvas.clipPath(Path()..addOval(skull));
+      Offset fp(double up, double side, [double fw = 0.40]) => mv(hc + fwd * (fw * hs) + upH * (up * hs) + lat * (side * hs));
       for (final sd in const [1.0, -1.0]) {
-        final e = mv(hc + fwd * (0.30 * hs) + upH * (0.075 * hs) + lat * (sd * 0.17 * hs));
-        canvas.drawOval(Rect.fromCenter(center: e, width: 0.15 * hs * s, height: 0.085 * hs * s),
-            _fillP(const Color(0xFFF4F1EE), fa));
-        canvas.drawCircle(e, 0.036 * hs * s, _fillP(const Color(0xFF1B120C), fa));
-        canvas.drawLine(
-            mv(hc + fwd * (0.31 * hs) + upH * (0.16 * hs) + lat * (sd * 0.09 * hs)),
-            mv(hc + fwd * (0.31 * hs) + upH * (0.17 * hs) + lat * (sd * 0.26 * hs)),
-            _strokeP(hairCol, 0.03 * hs * s, fa));
+        // eye: a soft almond white, a brown iris that fills most of it, a dark pupil
+        final e = fp(0.05, sd * 0.15);
+        final eye = Rect.fromCenter(center: e, width: 0.13 * hs * s, height: 0.06 * hs * s);
+        canvas.drawOval(eye, _fillP(const Color(0xFFEDE5DD), fa));
+        canvas.save();
+        canvas.clipRRect(RRect.fromRectXY(eye, eye.width / 2, eye.height / 2));
+        canvas.drawCircle(e, 0.033 * hs * s, _fillP(const Color(0xFF5A3A22), fa));
+        canvas.drawCircle(e, 0.016 * hs * s, _fillP(const Color(0xFF140C07), fa));
+        canvas.restore();
+        // upper lid line and a thin, slightly arched brow
+        canvas.drawArc(eye, math.pi * 1.05, math.pi * 0.9, false, _strokeP(const Color(0xFF6B4129), 0.012 * hs * s, fa));
+        final brow = Path();
+        _mv(brow, fp(0.13, sd * 0.07));
+        final bc = fp(0.165, sd * 0.15), be = fp(0.135, sd * 0.235);
+        brow.quadraticBezierTo(bc.dx, bc.dy, be.dx, be.dy);
+        canvas.drawPath(brow, _strokeP(hairCol, 0.022 * hs * s, 0.85 * fa));
       }
-      ellipsoid(hc + fwd * (0.15 * hs) - upH * (0.30 * hs), [(fwd, 0.2 * hs), (upH, 0.2 * hs), (lat, 0.3 * hs)],
-          _fillP(hairCol, 0.14 * fa));
-      canvas.drawLine(mv(hc + fwd * (0.33 * hs) - upH * (0.23 * hs) - lat * (0.08 * hs)),
-          mv(hc + fwd * (0.33 * hs) - upH * (0.23 * hs) + lat * (0.08 * hs)), _strokeP(const Color(0xFF8F5A3C), 0.026 * hs * s, fa));
-      canvas.drawCircle(mv(hc + fwd * (0.42 * hs) - upH * (0.02 * hs)), 0.05 * hs * s, _fillP(_skin[3], 0.6 * fa));
+      // nose: a soft shadow down one side and the base, no dot
+      final nose = Path();
+      _mv(nose, fp(0.02, 0.035));
+      final n1 = fp(-0.10, 0.05), n2 = fp(-0.13, 0.0);
+      nose.quadraticBezierTo(n1.dx, n1.dy, n2.dx, n2.dy);
+      canvas.drawPath(nose, _strokeP(_skin[3], 0.02 * hs * s, 0.7 * fa));
+      canvas.drawLine(fp(-0.135, -0.04), fp(-0.135, 0.04), _strokeP(_skin[4], 0.014 * hs * s, 0.45 * fa));
+      // mouth: a short, slightly curved line with a hint of lower lip
+      final mouth = Path();
+      _mv(mouth, fp(-0.24, -0.075, 0.38));
+      final mc = fp(-0.255, 0, 0.38), me = fp(-0.24, 0.075, 0.38);
+      mouth.quadraticBezierTo(mc.dx, mc.dy, me.dx, me.dy);
+      canvas.drawPath(mouth, _strokeP(const Color(0xFF8A5236), 0.018 * hs * s, fa));
+      canvas.drawLine(fp(-0.29, -0.035, 0.37), fp(-0.29, 0.035, 0.37), _strokeP(_skin[3], 0.014 * hs * s, 0.35 * fa));
+      canvas.restore();
     }
 
     // profile (side view): the original detailed side picture, mirrored when he faces left
@@ -760,31 +852,14 @@ class _FigDraw {
       pa.close();
       canvas.drawPath(pa, skinShader);
 
-      final jaw = Path();
-      _mv(jaw, pt(-0.18, 0.34));
-      _cb(jaw, pt(-0.05, 0.46), pt(0.15, 0.52), pt(0.30, 0.5));
-      _ln(jaw, pt(0.30, 0.38));
-      _cb(jaw, pt(0.12, 0.42), pt(-0.05, 0.36), pt(-0.18, 0.2));
-      jaw.close();
-      canvas.drawPath(jaw, _fillP(const Color(0xFF7C4A2C), 0.32));
-
-      final bdp = Path();
-      _mv(bdp, pt(0.34, 0.26));
-      _cb(bdp, pt(0.34, 0.45), pt(0.22, 0.53), pt(0.08, 0.50));
-      _cb(bdp, pt(-0.06, 0.46), pt(-0.14, 0.38), pt(-0.18, 0.2));
-      _ln(bdp, pt(-0.05, 0.12));
-      _cb(bdp, pt(0.05, 0.28), pt(0.2, 0.3), pt(0.30, 0.22));
-      bdp.close();
-      canvas.drawPath(bdp, _fillP(hairCol, 0.4));
-
+      // clean-shaven (no beard or jaw patches); short hair: over the top, ending above the ear and at the nape
       final hr = Path();
-      _mv(hr, pt(0.33, -0.27));
-      _cb(hr, pt(0.30, -0.44), pt(0.14, -0.55), pt(-0.06, -0.54));
-      _cb(hr, pt(-0.32, -0.54), pt(-0.50, -0.34), pt(-0.46, -0.04));
-      _cb(hr, pt(-0.44, 0.06), pt(-0.40, 0.14), pt(-0.36, 0.17));
-      _ln(hr, pt(-0.27, 0.02));
-      _cb(hr, pt(-0.22, -0.10), pt(-0.12, -0.14), pt(0.0, -0.17));
-      _cb(hr, pt(0.16, -0.20), pt(0.26, -0.22), pt(0.33, -0.27));
+      _mv(hr, pt(0.30, -0.30));
+      _cb(hr, pt(0.27, -0.46), pt(0.12, -0.55), pt(-0.06, -0.54));
+      _cb(hr, pt(-0.32, -0.54), pt(-0.48, -0.34), pt(-0.45, -0.06));
+      _cb(hr, pt(-0.44, 0.02), pt(-0.41, 0.08), pt(-0.38, 0.10));
+      _cb(hr, pt(-0.33, -0.02), pt(-0.26, -0.12), pt(-0.18, -0.16));
+      _cb(hr, pt(0.0, -0.22), pt(0.18, -0.24), pt(0.30, -0.30));
       hr.close();
       canvas.drawPath(
           hr,
@@ -826,16 +901,16 @@ class _FigDraw {
             (i / 10, _interp(base, i / 10) + amp * math.exp(-math.pow((i / 10 - 0.5) / 0.22, 2)))
         ];
     // muscles show even with a straight arm, and get bigger when the arm flexes
-    final uF = prof(_armF, 0.04 + 0.09 * flex);
-    final uB = prof(_armB, 0.03 + 0.05 * flex);
-    final uL = prof(_armL, 0.03 + 0.04 * flex);
+    final uF = prof(_armF, 0.025 + 0.06 * flex);
+    final uB = prof(_armB, 0.02 + 0.03 * flex);
+    final uL = prof(_armL, 0.02 + 0.025 * flex);
 
     // shoulder (deltoid), upper arm, forearm
     final sc = mv(sd.shoulder);
     canvas.drawCircle(
         sc,
-        0.25 * s,
-        _shaderP(ui.Gradient.radial(sc + Offset(0.07 * s, -0.07 * s), 0.30 * s,
+        0.19 * s,
+        _shaderP(ui.Gradient.radial(sc + Offset(0.05 * s, -0.05 * s), 0.23 * s,
             _dim([_skin[1], _skin[2], _skin[3]], dk), const [0.0, 0.55, 1.0])));
     final upper = tube(sd.shoulder, sd.elbow, uF, uB, uL, _skin, capA: false, dark: dk);
     tube(sd.elbow, sd.wrist, _foreF, _foreB, _foreL, _skin, dark: dk);
@@ -843,43 +918,43 @@ class _FigDraw {
 
     // biceps peak and triceps line
     crv([
-      surf(sd.shoulder, sd.elbow, 0.15, 1, 0.15),
-      surf(sd.shoulder, sd.elbow, 0.45, 1, 0.15 + 0.07 * flex),
-      surf(sd.shoulder, sd.elbow, 0.8, 1, 0.11),
-    ], _skin[1], 0.035, 0.55 + 0.3 * flex, vf);
+      surf(sd.shoulder, sd.elbow, 0.15, 1, 0.11),
+      surf(sd.shoulder, sd.elbow, 0.45, 1, 0.11 + 0.05 * flex),
+      surf(sd.shoulder, sd.elbow, 0.8, 1, 0.08),
+    ], _skin[1], 0.028, 0.5 + 0.3 * flex, vf);
     crv([
-      surf(sd.shoulder, sd.elbow, 0.3, -1, 0.1),
-      surf(sd.shoulder, sd.elbow, 0.6, -1, 0.11),
-      surf(sd.shoulder, sd.elbow, 0.85, -1, 0.05),
-    ], _skin[4], 0.016, 0.4, vb);
+      surf(sd.shoulder, sd.elbow, 0.3, -1, 0.07),
+      surf(sd.shoulder, sd.elbow, 0.6, -1, 0.08),
+      surf(sd.shoulder, sd.elbow, 0.85, -1, 0.04),
+    ], _skin[4], 0.013, 0.4, vb);
 
-    // deltoid / triceps horseshoe and forearm line
+    // deltoid line and forearm line
     crv([
-      surf(sd.shoulder, sd.elbow, 0.05, 1, 0.2),
-      surf(sd.shoulder, sd.elbow, 0.25, 1, 0.24),
-    ], _skin[4], 0.02, 0.5, vf);
+      surf(sd.shoulder, sd.elbow, 0.05, 1, 0.15),
+      surf(sd.shoulder, sd.elbow, 0.25, 1, 0.17),
+    ], _skin[4], 0.016, 0.45, vf);
     crv([
-      surf(sd.elbow, sd.wrist, 0.1, 1, 0.12),
-      surf(sd.elbow, sd.wrist, 0.35, 1, 0.14),
-      surf(sd.elbow, sd.wrist, 0.65, 1, 0.07),
-    ], _skin[1], 0.03, 0.45, vf);
+      surf(sd.elbow, sd.wrist, 0.1, 1, 0.09),
+      surf(sd.elbow, sd.wrist, 0.35, 1, 0.10),
+      surf(sd.elbow, sd.wrist, 0.65, 1, 0.05),
+    ], _skin[1], 0.024, 0.4, vf);
 
     final angA = projAng(sd.shoulder, sd.elbow);
     if (focus.contains(FigMuscle.biceps)) {
-      glowAt(surf(sd.shoulder, sd.elbow, 0.45, 1, 0.08 + 0.05 * flex), 0.16, 0.28, angA, upper.path, vf);
+      glowAt(surf(sd.shoulder, sd.elbow, 0.45, 1, 0.06 + 0.04 * flex), 0.12, 0.24, angA, upper.path, vf);
     }
     if (focus.contains(FigMuscle.triceps)) {
-      glowAt(surf(sd.shoulder, sd.elbow, 0.5, -1, 0.08), 0.18, 0.32, angA, upper.path, vb);
+      glowAt(surf(sd.shoulder, sd.elbow, 0.5, -1, 0.06), 0.13, 0.26, angA, upper.path, vb);
     }
 
     // elbow and hand
-    blob(pr(sd.elbow), 0.11, 0.11, 0, _skin[3], 0.35);
-    final hc = sd.wrist + (sd.wrist - sd.elbow).unit * 0.07;
+    blob(pr(sd.elbow), 0.08, 0.08, 0, _skin[3], 0.35);
+    final hc = sd.wrist + (sd.wrist - sd.elbow).unit * 0.06;
     final hp = mv(hc);
     canvas.drawCircle(
         hp,
-        0.14 * s,
-        _shaderP(ui.Gradient.radial(hp + Offset(0.04 * s, -0.04 * s), 0.14 * s,
+        0.105 * s,
+        _shaderP(ui.Gradient.radial(hp + Offset(0.03 * s, -0.03 * s), 0.11 * s,
             _dim([_skin[1], _skin[2], _skin[3]], dk), const [0.0, 0.5, 1.0])));
   }
 
@@ -1150,7 +1225,7 @@ class _TrainerGuideState extends State<TrainerGuide> with SingleTickerProviderSt
     final bad = _fig.bad;
     final accent = bad ? Sp.fault : Sp.mint;
     final last = _i == _count - 1;
-    final title = _i == 0 ? 'The movement' : (bad ? 'Avoid this' : 'Step $_i of ${_count - 1}');
+    final title = _i == 0 ? 'The movement' : (bad ? "Don't do this" : 'Step $_i of ${_count - 1}');
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       // the coach (drag to turn him)

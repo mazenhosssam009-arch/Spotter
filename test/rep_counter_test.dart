@@ -70,6 +70,34 @@ void main() {
     expect(counter.setReps, 0);
   });
 
+  test('biceps curl: reps from 30 to 130 deg of elbow flexion count (no locked-out arm needed)', () {
+    final curl = exercises.firstWhere((e) => e.name == 'Biceps Curl');
+    final counter = RepCounter(curl);
+    var t = 0.0;
+    void hold(double deg, double secs) {
+      for (var i = 0; i < secs * 30; i++) {
+        counter.update(sideCurl(deg), t += 1 / 30);
+      }
+    }
+
+    void move(double from, double to, double secs) {
+      final n = (secs * 30).round();
+      for (var i = 1; i <= n; i++) {
+        counter.update(sideCurl(from + (to - from) * i / n), t += 1 / 30);
+      }
+    }
+
+    // elbow angle = 180 - flexion: 30 deg flexion = 150, 130 deg flexion = 50
+    hold(150, RepCounter.setupSeconds + 0.5);
+    for (var rep = 0; rep < 3; rep++) {
+      move(150, 50, 1.5);
+      hold(50, 0.6);
+      move(50, 150, 2);
+      hold(150, 1);
+    }
+    expect(counter.count, 3);
+  });
+
   test('a half curl is reported as incomplete and not counted', () {
     final curl = exercises.firstWhere((e) => e.name == 'Biceps Curl');
     final counter = RepCounter(curl);

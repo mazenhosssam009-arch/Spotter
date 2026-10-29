@@ -12,11 +12,15 @@ class ExerciseLocalDataSourceImpl implements ExerciseLocalDataSource {
 
 const exercises = [
   // Right Arm (shoulder=12, elbow=14, wrist=16)
-  // elbow >=160 (extended) -> <=64 (flexed)
+  // elbow >=148 (bottom) -> <=64 (top)
   // full curl = 130 deg elbow flexion = 50 deg here (Pinto et al. (2012) J Strength Cond Res
   // 26(8):2140-2145) + 14 deg pose-estimation elbow error (Francia et al. (2024) LNCS
   // Extended Reality pp.40-49) = 64. 45 needed 135 deg of flexion, more than a full curl.
-  Exercise(name: 'Biceps Curl', right: [12, 14, 16], downAngle: 64, upAngle: 160,
+  // The bottom is ~30 deg of flexion (150 here), NOT a locked-out arm: keeping a slight bend
+  // keeps tension on the biceps and spares the elbow. 148 = 150 minus a little for the
+  // smoothing lag. 160 forced a straight, locked elbow, so stopping a bit higher
+  // never finished the rep.
+  Exercise(name: 'Biceps Curl', right: [12, 14, 16], downAngle: 64, upAngle: 148,
       limits: {'maxSpeed': 400}),
   // Right Leg (hip=24, knee=26, ankle=28), Left Leg (hip=23, knee=25, ankle=27)
   // knee >=165 (standing) = 0% , <=95 (extra deep) = 100% on the bar.
