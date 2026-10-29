@@ -188,3 +188,20 @@ python tool/make_egyptian_voice_gemini.py --record puck zephyr
 - The free plan has a small daily limit. When it is reached the script stops and saves; run
   the same command the next day and it continues (`assets/voice/ar_eg/recorded_gemini.json`).
 - Needs `python -m pip install lameenc` (MP3 encoder) and, on PCs with certificate errors, `truststore`.
+
+---
+
+# Egyptian voices with NAMAA (open source, made on a PC)
+
+[NAMAA-Egyptian-TTS](https://huggingface.co/NAMAA-Space/NAMAA-Egyptian-TTS) by the NAMAA
+Community, built on Resemble AI's Chatterbox. **MIT license**: commercial use allowed; keep
+this credit. No API key and no daily limit; needs ~10 GB free disk (a GPU makes it fast).
+
+It speaks in the voice of a short reference recording:
+`tool/voice_refs/namaa_female.wav` (downloaded automatically: the NAMAA demo's voice) and
+`tool/voice_refs/namaa_male.wav` (record ~10 s of a male teammate who agreed to it).
+Voices `namaa_male` / `namaa_female` show in the settings as "NAMAA". When Puck / Zephyr are
+not recorded yet, the app uses NAMAA before the old Shakir / Salma clips.
+
+Setup and use: see the top of `tool/make_egyptian_voice_namaa.py`
+(`--sample` first, then `--record`, optional `--check` with Whisper).

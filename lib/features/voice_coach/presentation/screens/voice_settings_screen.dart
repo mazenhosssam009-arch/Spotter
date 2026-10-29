@@ -196,9 +196,10 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
                 const SizedBox(height: 12),
                 DropdownButton<String>(
                   isExpanded: true,
-                  value: _egVoices.any((v) => v.id == s.egyptianVoice && v.gender == s.gender)
-                      ? s.egyptianVoice
-                      : EgyptianVoice.defaultFor(s.gender).id,
+                  // the voice that really plays: the picked one, else the default, else the
+                  // first recorded voice of this gender (same order as TtsEngine._clipFolder)
+                  value: [s.egyptianVoice, EgyptianVoice.defaultFor(s.gender).id, ..._egVoices.map((v) => v.id)]
+                      .firstWhere((id) => _egVoices.any((v) => v.id == id && v.gender == s.gender)),
                   items: [
                     for (final v in _egVoices.where((v) => v.gender == s.gender))
                       DropdownMenuItem<String>(

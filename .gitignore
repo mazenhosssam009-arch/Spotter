@@ -46,3 +46,7 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# voice tools: local Python environment and listening samples (not part of the app)
+tool/.venv/
+tool/try/namaa/

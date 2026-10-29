@@ -308,7 +308,8 @@ class TtsEngine {
   }
 
   /// which recorded voice to use, null = the phone voice. The picked voice, else the default
-  /// of the gender (Puck / Zephyr), else the older Shakir / Salma clips, else the other gender
+  /// of the gender (Puck / Zephyr), else any other recorded voice of the gender (NAMAA first),
+  /// else the older Shakir / Salma clips, else the other gender
   Future<String?> _clipFolder(VoiceSettings s) async {
     if (!s.arabic || !s.egyptianClips || kIsWeb) return null;
     final clips = await _loadClips();
@@ -317,6 +318,8 @@ class TtsEngine {
     final order = [
       if (picked != null && picked.gender == s.gender) picked.id,
       EgyptianVoice.defaultFor(s.gender).id,
+      for (final v in EgyptianVoice.all)
+        if (v.gender == s.gender && !v.isDefault) v.id,
       EgyptianVoice.legacyFolder(s.gender),
       EgyptianVoice.defaultFor(other).id,
       EgyptianVoice.legacyFolder(other),
