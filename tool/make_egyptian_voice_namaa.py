@@ -51,23 +51,52 @@ VOICES = {
                      "https://huggingface.co/spaces/omarelshehy/NAMAA-Egyptian-Voice/resolve/main/female_voice.wav"),
     "namaa_male": ("male", os.path.join(REF_DIR, "namaa_male.wav"), None),
 }
-# how it speaks (the demo's defaults; exaggeration up = more energy)
-STYLE = {"exaggeration": 0.5, "temperature": 0.8, "cfg_weight": 0.5}
-SEEDS = [1, 7, 42]  # a wrong clip is made again with the next seed
+# how it speaks (exaggeration up = more energy; tested by ear: punchier than the demo's 0.5)
+STYLE = {"exaggeration": 0.7, "temperature": 0.8, "cfg_weight": 0.5}
+SEEDS = [1, 7, 42, 3, 99]  # a wrong clip is made again with the next seed
 MP3_KBPS = 48
 
+# How the voice SAYS a line (the app's text and the clip names stay the same).
+# Tested by ear, in this order: the written text on the left is read as the right.
+SAY_AS = [
+    ("دي كانِت سْكوات مِش ديدْليفْت، اِتْني مِن وِسْطَك", "دِي كَانَتْ سْكْوَات مِشْ دِيدْلِيفْت، اِتْنِي وِسْطَك."),
+    ("البار مايِل، اِدْفَع بِإيدَيْك الاِتْنَيْن زَيّ بَعْض", "البارْ مَشْ مَظْبُوط، خَلِّي إِيْدَك الإِتْنَيْن مَفْرُودِين زَيّ بَعْض"),
+    ("ظَبَّط وَقْفِتَك", "ظَبِّطْ جِسْمَك"),
+    ("ثانْيَة", "سَانْيَة"),
+    ("راس البَنْش", "رَاس البَنْش"),
+    ("يَلّا يا بَطَل، ", ""),  # يلا / يا بطل dropped: the model can't say yalla
+    ("، يَلّا يا بَطَل!", "!"),
+    ("يَلّا نِ", "خَلّينا نِ"),
+    ("يَلّا بينا!", "خَلّينا نِبْدَأ!"),
+    ("قول يَلّا", "قول جاهِز"),  # جاهز is a voice command too
+    ("! يَلّا!", "!"),
+    ("ريب واحِد", "عَدّة وَحْدَة"),
+    ("ريب مِش كامْلَة", "دي مِش كامْلَة"),
+    ("نُصّ ريب", "نُصّ عَدّة"),
+    ("مَتِخَلّيش", "مَتْخَلّيش"),
+    ("سكوات", "اِسْكْوات"),
+    ("رومانيان ديدليفت", "ديدليفت روماني"),
+    ("ديدليفت", "دِدْلِفْت"),
+]
+SAY_AS_VOICE = {
+    "namaa_female": [("ريبْس", "رِبْس"), ("بنش بريس", "بنش برس"), ("تِدْخُل لِجُوَّه", "تدخل لجوه"), ("لِجُوَّه", "لجوه")],
+    "namaa_male": [("ريبْس", "رِبس"), ("بنش بريس", "بَنْش بْرِس"), ("تِدْخُل لِجُوَّه", "تدخل لجوه"), ("لِجُوَّه", "لجوه")],
+}
+
 SAMPLE_LINES = [
-    "ارفع صدرك",
-    "متخليش ركبتك تدخل لجوه",
-    "تلاتة ريبس",
-    "ارجع لورا شوية، عايز اشوفك من راسك لرجلك",
-    "الراحة خلصت، جاهز للسِت اللي جاي؟",
-    "فاضل اتنين! يلا!",
-    "دي متحسبتش، انزل اكتر",
-    "عاش! كمل كده!",
+    "اِرْفَع صِدْرَك، يَلّا يا بَطَل!",
+    "مَتِخَلّيش رُكْبِتَك تِدْخُل لِجُوَّه",
+    "تَلاتَة ريبْس",
+    "اِرْجَع لِوَرا شُوَيَّة، عايِز أَشوفَك مِن راسَك لِرِجْلَك",
+    "الراحَة خِلْصِت، جاهِز لِلسِّت اللي جاي؟",
+    "سكوات، يَلّا نِبْدَأ",
+    "بنش بريس، يَلّا نِبْدَأ",
+    "سومو ديدليفت، يَلّا نِبْدَأ",
 ]
 
 TASHKEEL = re.compile(r"[ً-ْٰ]")
+# a vowel/sukoon on the last letter makes the model stop after every word: drop it (keep shadda)
+WORD_END = re.compile(r"[ً-ِْ]+(?=ّ?(?:[^ء-ْ]|$))")
 
 
 # ------------------------------------------------------------------ small helpers
@@ -103,10 +132,27 @@ def load_pieces():
     return pieces
 
 
+UNITS = ["", "واحد", "اتنين", "تلاته", "اربعه", "خمسه", "سته", "سبعه", "تمانيه", "تسعه"]
+TEENS = ["عشره", "حداشر", "اتناشر", "تلتاشر", "اربعتاشر", "خمستاشر", "ستاشر", "سبعتاشر", "تمنتاشر", "تسعتاشر"]
+TENS = ["", "", "عشرين", "تلاتين", "اربعين", "خمسين", "ستين", "سبعين", "تمانين", "تسعين"]
+
+
+def number_words(m):
+    """Whisper writes numbers as digits ("64"): spell them the Egyptian way to compare"""
+    n = int(m.group())
+    if n >= 100:
+        return m.group()
+    if n < 10:
+        return UNITS[n] or "صفر"
+    if n < 20:
+        return TEENS[n - 10]
+    return (UNITS[n % 10] + "و" if n % 10 else "") + TENS[n // 10]
+
+
 def norm(t):
     """compare Arabic loosely: no tashkeel, punctuation or spaces; common spelling variants equal"""
-    t = TASHKEEL.sub("", t)
-    for a, b in (("أ", "ا"), ("إ", "ا"), ("آ", "ا"), ("ى", "ي"), ("ة", "ه"), ("ؤ", "و"), ("ئ", "ي")):
+    t = re.sub(r"\d+", number_words, TASHKEEL.sub("", t))
+    for a, b in (("أ", "ا"), ("إ", "ا"), ("آ", "ا"), ("ى", "ي"), ("ة", "ه"), ("ؤ", "و"), ("ئ", "ي"), ("ث", "ت")):
         t = t.replace(a, b)
     return re.sub(r"[^ء-ي]", "", t)
 
@@ -114,7 +160,18 @@ def norm(t):
 def similarity(said, line):
     import difflib
 
+    if len(norm(said)) > len(norm(line)) * 1.25 + 4:
+        return 0.3  # it kept talking after the line: make it again
     return difflib.SequenceMatcher(None, norm(said), norm(line)).ratio()
+
+
+def spoken(text, folder):
+    """what the voice reads for [text]: SAY_AS fixes, tashkeel kept except at word ends"""
+    if text.strip() == "يَلّا":
+        return "اِبْدَأ!"
+    for a, b in SAY_AS + SAY_AS_VOICE.get(folder, []):
+        text = text.replace(a, b)
+    return WORD_END.sub("", text)
 
 
 def reference(folder):
@@ -164,8 +221,8 @@ class Namaa:
         return (samples * 32767).astype("int16").tobytes()
 
 
-def trim(pcm, rate, pad_ms=60):
-    """cut the silence before and after the speech, keep a little"""
+def trim(pcm, rate, pad_ms=150, fade_ms=120):
+    """cut the silence before and after the speech, keep a little, fade out the end (no noise after it)"""
     a = array.array("h")
     a.frombytes(pcm)
     if not a:
@@ -175,7 +232,11 @@ def trim(pcm, rate, pad_ms=60):
     first = next((i for i, x in enumerate(a) if abs(x) > quiet), 0)
     last = next((i for i in range(len(a) - 1, -1, -1) if abs(a[i]) > quiet), len(a) - 1)
     pad = rate * pad_ms // 1000
-    return a[max(0, first - pad): min(len(a), last + pad)].tobytes()
+    a = a[max(0, first - pad): min(len(a), last + pad)]
+    n = min(len(a), rate * fade_ms // 1000)
+    for i in range(n):
+        a[len(a) - n + i] = int(a[len(a) - n + i] * (1 - (i + 1) / n))
+    return a.tobytes()
 
 
 def mp3(pcm, rate):
@@ -215,8 +276,17 @@ class Checker:
     def heard(self, pcm, rate):
         import io
 
-        segs, _ = self.model.transcribe(io.BytesIO(wav_bytes(pcm, rate)), language="ar", beam_size=5)
+        segs, _ = self.model.transcribe(io.BytesIO(wav_bytes(pcm, rate)), language="ar", beam_size=5,
+                                        word_timestamps=True)
+        segs = list(segs)
+        self.end = max((w.end for s in segs for w in (s.words or [])), default=None)
         return " ".join(s.text for s in segs)
+
+    def cut_tail(self, pcm, rate):
+        """the model sometimes babbles after the line (Whisper writes no words for it): cut it off"""
+        if self.end is not None and len(pcm) / 2 / rate - self.end > 0.6:
+            return trim(pcm[: int((self.end + 0.25) * rate) * 2], rate)
+        return pcm
 
 
 # ------------------------------------------------------------------ commands
@@ -239,7 +309,7 @@ def sample():
         out = os.path.join(TRY_DIR, folder)
         os.makedirs(out, exist_ok=True)
         for i, line in enumerate(SAMPLE_LINES, 1):
-            pcm = trim(tts.say(line, ref, SEEDS[0]), tts.sr)
+            pcm = trim(tts.say(spoken(line, folder), ref, SEEDS[0]), tts.sr)
             with open(os.path.join(out, f"{i:02d}.wav"), "wb") as f:
                 f.write(wav_bytes(pcm, tts.sr))
         print(f"  {out}")
@@ -278,7 +348,7 @@ def record():
         for n, (k, t) in enumerate(todo, 1):
             if tts is None:
                 tts = Namaa(cpu)
-            text = TASHKEEL.sub("", t)
+            text = spoken(t, folder)
             best, best_score = None, -1.0
             for seed in SEEDS if checker else SEEDS[:1]:
                 pcm = trim(tts.say(text, ref, seed), tts.sr)
@@ -286,6 +356,7 @@ def record():
                     best = pcm
                     break
                 score = similarity(checker.heard(pcm, tts.sr), text)
+                pcm = checker.cut_tail(pcm, tts.sr)
                 if score > best_score:
                     best, best_score = pcm, score
                 if score >= 0.6:
