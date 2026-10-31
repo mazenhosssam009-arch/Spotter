@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'package:ai_trainer/features/voice_coach/data/datasources/clip_text.dart';
 import 'package:ai_trainer/features/voice_coach/domain/entities/egyptian_voice.dart';
@@ -284,6 +286,7 @@ class TtsEngine {
   Future<Map<String, Set<String>>> _loadClips() async {
     final loaded = _clips;
     if (loaded != null) return loaded;
+    await _dropCachedClips();
     var out = <String, Set<String>>{};
     try {
       final raw = jsonDecode(await rootBundle.loadString(ClipText.manifest)) as Map<String, dynamic>;
@@ -295,6 +298,19 @@ class TtsEngine {
       // no clip pack in the app: the phone voice is used
     }
     return _clips = out;
+  }
+
+  /// just_audio plays an asset from a copy in the temp folder and never refreshes that copy, so
+  /// after an app update the phone kept playing the clips of the first install (fixed clips never
+  /// reached it). Once per app start the copies are deleted; each clip is copied again on first use.
+  Future<void> _dropCachedClips() async {
+    if (kIsWeb) return;
+    try {
+      final dir = Directory('${(await getTemporaryDirectory()).path}/just_audio_cache/assets');
+      if (dir.existsSync()) await dir.delete(recursive: true);
+    } catch (_) {
+      // the old copies are only a quality issue, never a reason not to speak
+    }
   }
 
   /// the recorded Egyptian voice is inside the app

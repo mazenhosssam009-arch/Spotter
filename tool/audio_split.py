@@ -59,3 +59,58 @@ def split(pcm, rate, count):
 
 def seconds(pcm, rate):
     return len(pcm) / 2 / rate
+
+
+def drop_end_noise(pcm, rate):
+    """Gemini sometimes ends its audio with ~150 ms of full-scale noise (a loud hiss after the
+    line): cut it off and fade the new end so the cut does not click"""
+    a, n, peak = _frames(pcm, rate)
+    j = len(peak)
+    while j > 0 and len(peak) - j < 2 and peak[j - 1] < 30000:  # a quieter last frame or two
+        j -= 1
+    k = j
+    while k > 0 and peak[k - 1] >= 30000:
+        k -= 1
+    if j - k < 3:
+        return pcm
+    out = a[:k * n]
+    fade = min(rate // 50, len(out))
+    for i in range(fade):
+        out[len(out) - 1 - i] = int(out[len(out) - 1 - i] * i / fade)
+    return out.tobytes()
+
+
+def strays(pcm, rate, max_ms=160, gap_ms=200):
+    """(start_ms, end_ms) of a short sound cut off from the speech by a silence at the very start /
+    end of a clip: a sliver of the neighbouring line when a cut was put in the wrong pause.
+    0 = none. Real short words (about 300 ms) are not counted."""
+    a, n, peak = _frames(pcm, rate)
+    if not peak:
+        return 0, 0
+    loud = max(peak) or 1
+    quiet = max(250, loud * 0.06)
+    runs, i = [], 0
+    while i < len(peak):
+        if peak[i] >= quiet:
+            j = i
+            while j < len(peak) and peak[j] >= quiet:
+                j += 1
+            runs.append([i, j])
+            i = j
+        else:
+            i += 1
+    merged = []
+    for r in runs:  # sounds less than 150 ms apart belong together
+        if merged and (r[0] - merged[-1][1]) * FRAME_MS < 150:
+            merged[-1][1] = r[1]
+        else:
+            merged.append(r)
+    head = tail = 0
+    if len(merged) >= 2:
+        f, s = merged[0], merged[1]
+        if (f[1] - f[0]) * FRAME_MS <= max_ms and (s[0] - f[1]) * FRAME_MS >= gap_ms:
+            head = (f[1] - f[0]) * FRAME_MS
+        l, p = merged[-1], merged[-2]
+        if (l[1] - l[0]) * FRAME_MS <= max_ms and (l[0] - p[1]) * FRAME_MS >= gap_ms:
+            tail = (l[1] - l[0]) * FRAME_MS
+    return head, tail
