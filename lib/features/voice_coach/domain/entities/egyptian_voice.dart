@@ -17,16 +17,16 @@ class EgyptianVoice {
   /// the voice used for this gender when the user did not pick one
   final bool isDefault;
 
-  /// Puck and Zephyr are the defaults: they sounded the most like a normal Egyptian.
+  /// Ziad and Yasmine (ElevenLabs) are the defaults: their lines were checked one by one by ear.
   /// The order is also the fallback order when the picked / default voice is not in the build.
   static const all = [
-    EgyptianVoice('puck', 'Puck', VoiceGender.male, isDefault: true),
-    EgyptianVoice('ziad', 'Ziad', VoiceGender.male),
+    EgyptianVoice('ziad', 'Ziad', VoiceGender.male, isDefault: true),
+    EgyptianVoice('puck', 'Puck', VoiceGender.male),
     EgyptianVoice('namaa_male', 'NAMAA', VoiceGender.male),
     EgyptianVoice('fenrir', 'Fenrir', VoiceGender.male),
     EgyptianVoice('orus', 'Orus', VoiceGender.male),
-    EgyptianVoice('zephyr', 'Zephyr', VoiceGender.female, isDefault: true),
-    EgyptianVoice('yasmine', 'Yasmine', VoiceGender.female),
+    EgyptianVoice('yasmine', 'Yasmine', VoiceGender.female, isDefault: true),
+    EgyptianVoice('zephyr', 'Zephyr', VoiceGender.female),
     EgyptianVoice('namaa_female', 'NAMAA', VoiceGender.female),
     EgyptianVoice('kore', 'Kore', VoiceGender.female),
     EgyptianVoice('leda', 'Leda', VoiceGender.female),

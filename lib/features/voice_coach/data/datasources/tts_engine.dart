@@ -324,7 +324,7 @@ class TtsEngine {
   }
 
   /// which recorded voice to use, null = the phone voice. The picked voice, else the default
-  /// of the gender (Puck / Zephyr), else any other recorded voice of the gender (Ziad / Yasmine first),
+  /// of the gender (Ziad / Yasmine), else any other recorded voice of the gender (Puck / Zephyr first),
   /// else the older Shakir / Salma clips, else the other gender
   Future<String?> _clipFolder(VoiceSettings s) async {
     if (!s.arabic || !s.egyptianClips || kIsWeb) return null;
