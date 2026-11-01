@@ -352,9 +352,10 @@ def record():
             clips = [pcm] if len(batch) == 1 else audio_split.split(pcm, rate, len(batch))
             if clips is None or not lengths_ok(clips, rate, texts):
                 continue
-            if len(batch) == 1 and audio_split.strays(pcm, rate) != (0, 0):  # a click before / after the line
-                print("  a click before or after the line, recording again", flush=True)
-                continue
+            if len(batch) == 1:
+                # a click before / after the line is cut off (recording again only wasted the
+                # few requests a day: Gemini made a click again and again on the same line)
+                clips = [audio_split.trim_strays(pcm, rate)]
             # a sliver of the next / previous line at the edge of a clip = a cut in the wrong
             # pause (it sounded like a click after the line). That clip and the neighbour the
             # sliver belongs to (it may miss its first / last sound) are recorded again.
@@ -443,7 +444,8 @@ def record():
         print(f"\nGoogle's daily limit is used up ({e}).\n"
               f"Everything recorded so far is saved ({requests} requests this run).\n"
               "Run the same command tomorrow: it continues where it stopped.")
-        if check and check_model in str(e):
+        # exact name: the checking model's name is also the start of the voice model's name
+        if check and str(e).split(":")[0] == check_model:
             print("It was the CHECKING model's limit: add --no-check to keep recording today without the check.")
         return
     print("Done. Build the app again to hear the voices.")
