@@ -165,6 +165,14 @@ class _CameraViewState extends State<CameraView> {
       appBar: AppBar(
         title: Text(widget.title),
         actions: [
+          // too many buttons (e.g. curls: + the arm picker) covered the back button on a phone:
+          // keep room for it and scroll the buttons instead
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 72),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              reverse: true,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
           ...?widget.actions,
           Padding(
             padding: const EdgeInsets.only(left: 4, right: 8),
@@ -185,6 +193,9 @@ class _CameraViewState extends State<CameraView> {
                   ]),
                 ),
               ),
+            ),
+          ),
+              ]),
             ),
           ),
         ],

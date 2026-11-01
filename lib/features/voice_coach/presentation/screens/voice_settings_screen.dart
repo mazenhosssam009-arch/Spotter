@@ -43,6 +43,12 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _engine.stop(); // leaving the screen: the test voice stops talking
+    super.dispose();
+  }
+
   Future<void> _loadSupport(VoiceSettings s) async {
     _supportFor = s.language;
     final sup = await _engine.support(s);

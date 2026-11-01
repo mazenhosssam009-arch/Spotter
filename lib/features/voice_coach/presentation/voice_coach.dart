@@ -17,9 +17,10 @@ import 'package:ai_trainer/features/voice_coach/presentation/cubit/voice_setting
 
 /// one thing to say
 class _Utterance {
-  _Utterance(this.text, this.priority, {required this.maxAge, this.key, this.force = false});
+  _Utterance(this.text, this.priority, {required this.maxAge, this.key, this.force = false, this.onSaid});
   final String text;
   final bool force; // said even when muted (the user asked a question)
+  final VoidCallback? onSaid; // called when it really starts playing (not when dropped)
   final int priority;
   final double maxAge; // seconds; older = no longer relevant, dropped
   final String? key; // same key replaces the queued one
@@ -29,7 +30,7 @@ class _Utterance {
 /// The voice coach of one workout. It watches the TrainerBloc and decides what to say:
 /// - form warnings by severity: a clear fault (one that rejects the rep) is said at once
 ///   and may interrupt; a smaller one only when it lasts 1 s or keeps coming back
-/// - a cooldown per warning (7 s) and a short gap between warnings, so it never spams;
+/// - a cooldown per warning (10 s) and a 5 s gap between warnings, so it never spams;
 ///   when the user keeps doing it the wording changes ("Remember, ...")
 /// - only the most important problem is said when there are several (safety first)
 /// - rep counts, rep results (deep / partial / not counted), rep-goal motivation
@@ -196,10 +197,10 @@ class VoiceCoach {
   // ------------------------------------------------------------------ speaking queue
 
   void _enqueue(String text, int priority,
-      {double maxAge = 3, String? key, bool interrupt = false, bool force = false}) {
+      {double maxAge = 3, String? key, bool interrupt = false, bool force = false, VoidCallback? onSaid}) {
     if (text.trim().isEmpty || !(_on || force)) return;
     if (key != null) _queue.removeWhere((u) => u.key == key);
-    _queue.add(_Utterance(text, priority, maxAge: maxAge, key: key, force: force));
+    _queue.add(_Utterance(text, priority, maxAge: maxAge, key: key, force: force, onSaid: onSaid));
     // a clear fault cuts off less important talk (a rep count, praise, a summary)
     if (interrupt && _busy && priority > _currentPriority) {
       engine.stop();
@@ -216,6 +217,7 @@ class VoiceCoach {
         final u = _queue.removeAt(0);
         if (now() - u.created > u.maxAge || !(_on || u.force)) continue;
         _currentPriority = u.priority;
+        u.onSaid?.call();
         await engine.speak(u.text);
       }
     } finally {
@@ -407,6 +409,13 @@ class VoiceCoach {
       }
     }
 
+    // a rushed rep: "slow down" with the count (same 10 s cooldown as the warning)
+    if (counted && c.lastRepFast && _atLeast(CoachVerbosity.warnings) &&
+        t - (_lastSpoken[CoachCue.slowDown] ?? -99) >= 10) {
+      parts.add(_say.cue(CoachCue.slowDown));
+      _lastSpoken[CoachCue.slowDown] = t;
+    }
+
     final goal = _s.repGoal;
     if (counted && goal > 0 && _atLeast(CoachVerbosity.warningsReps)) {
       if (n == goal - 2) parts.add(_say.twoMore);
@@ -449,7 +458,9 @@ class VoiceCoach {
     final gate = c.gateMsg;
     final cue = gate == null ? null : CoachCue.fromGate(gate);
     if (cue != _lastGate) {
-      if (cue != null && (cue != CoachCue.getInPosition || _lastGate == null)) {
+      // half in the picture the message can change every second: at least 8 s between two
+      // (a skipped one is said by the reminder below)
+      if (cue != null && (cue != CoachCue.getInPosition || _lastGate == null) && t - _gateSpokenAt >= 8) {
         _enqueue(_say.cue(cue), _pSetup, maxAge: 3, key: 'setup');
         _gateSpokenAt = t;
       }
@@ -498,7 +509,7 @@ class VoiceCoach {
       final apps = _appearances.putIfAbsent(cue, () => <double>[])..removeWhere((x) => t - x > 20);
       final recurring = apps.length >= 2;
       if (!(severe || lasting || recurring)) continue;
-      if (t - (_lastSpoken[cue] ?? -99) < 7) continue; // cooldown per warning
+      if (t - (_lastSpoken[cue] ?? -99) < 10) continue; // cooldown per warning
       final better = best == null ||
           (severe && !bestSevere) ||
           (severe == bestSevere && cue.priority > best.priority);
@@ -508,14 +519,15 @@ class VoiceCoach {
       }
     }
     if (best == null || !_atLeast(CoachVerbosity.warnings)) return;
-    if (t - _lastWarningAt < 2.5) return; // a short gap between two warnings
+    if (t - _lastWarningAt < 5) return; // a gap between two warnings: not one after the other
     // the coach is talking (or a rep count is waiting): a normal warning waits for a
     // quiet moment instead of piling up; only a clear fault gets in at once
     if (!bestSevere && (_busy || _queue.isNotEmpty)) return;
 
+    // "I said, ..." only when the user really HEARD this warning in the last 45 s
+    // (a queued warning that was dropped or replaced does not count)
     final times = _spokenTimes.putIfAbsent(best, () => <double>[])..removeWhere((x) => t - x > 45);
     final repeat = times.isNotEmpty;
-    times.add(t);
     _lastSpoken[best] = t;
     _lastWarningAt = t;
     _enqueue(
@@ -524,6 +536,7 @@ class VoiceCoach {
       maxAge: 1.5,
       key: 'warn',
       interrupt: bestSevere,
+      onSaid: () => times.add(now()),
     );
   }
 }

@@ -89,7 +89,7 @@ class VoiceSettings extends Equatable {
   final bool egyptianClips;
 
   /// Arabic: which recorded Egyptian voice (EgyptianVoice.id, e.g. 'puck').
-  /// null = the default voice of [gender] (Puck / Zephyr). Cleared when the gender changes.
+  /// null = the default voice of [gender] (Ziad / Yasmine). Cleared when the gender changes.
   final String? egyptianVoice;
 
   bool get enabled => verbosity != CoachVerbosity.off;

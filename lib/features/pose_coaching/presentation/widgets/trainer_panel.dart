@@ -4,6 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:ai_trainer/core/theme/spotter_theme.dart';
 import 'package:ai_trainer/core/utils/cv_math.dart';
 import 'package:ai_trainer/core/widgets/spot_widgets.dart';
+import 'package:ai_trainer/features/pose_coaching/domain/entities/coaching_feedback.dart';
+import 'package:ai_trainer/features/pose_coaching/domain/services/rep_counter.dart';
 import 'package:ai_trainer/features/pose_coaching/presentation/bloc/trainer_bloc/trainer_bloc.dart';
 import 'package:ai_trainer/features/pose_coaching/presentation/widgets/form_colors.dart';
 
@@ -66,18 +68,35 @@ class _TrainerPanelState extends State<TrainerPanel> {
         ),
       );
 
-  /// slim panel: reps, form ring, feedback text, finish button (one row, 56 px)
+  /// "Set 1: 10 · Set 2: 8" for the finished sets, null before the first one
+  String? _doneSets(TrainerState state) {
+    final h = state.counter!.setHistory;
+    if (h.isEmpty) return null;
+    return [for (var i = 0; i < h.length; i++) 'Set ${i + 1}: ${h[i]}'].join(' · ');
+  }
+
+  /// slim panel: reps of this set, form ring, feedback text, finish button (one row, 56 px),
+  /// and the finished sets under it
   Widget _compactPanel(TrainerState state) {
     final c = state.counter!;
     final t = now();
     final msg = c.feedback(t);
     final fc = formLevelColor(c.formLevel(t));
+    final done = _doneSets(state);
+    return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _compactRow(c, msg, fc),
+      if (done != null)
+        Text(done, maxLines: 1, overflow: TextOverflow.ellipsis, style: Sp.labelSm.copyWith(color: Sp.muted)),
+    ]);
+  }
+
+  Widget _compactRow(RepCounter c, CoachingFeedback msg, Color fc) {
     return SizedBox(
       height: 56,
       child: Row(children: [
         Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('REPS', style: Sp.labelSm.copyWith(color: Sp.muted)),
-          Text('${c.count.toInt()}', style: Sp.displayMetric.copyWith(fontSize: 30, height: 1, color: Sp.white)),
+          Text('SET ${c.setNumber}', style: Sp.labelSm.copyWith(color: Sp.muted)),
+          Text('${c.setReps}', style: Sp.displayMetric.copyWith(fontSize: 30, height: 1, color: Sp.white)),
         ]),
         const SizedBox(width: 12),
         SizedBox(
@@ -140,6 +159,7 @@ class _TrainerPanelState extends State<TrainerPanel> {
         SpotChip('Set ${c.setNumber} · ${c.setReps} reps · ${mmss(t - c.setStart)}', dot: Sp.mint)
       else
         SpotChip('Set ${c.setNumber} · start lifting', dot: formNA),
+      if (_doneSets(state) case final done?) SpotChip(done, dot: Sp.muted),
       if (c.isCurl)
         SpotChip(
             c.altMode ? 'Next ${c.altRightNext ? 'R' : 'L'} · R ${c.repsR} · L ${c.repsL}' : armNames[c.armMode],
@@ -200,8 +220,8 @@ class _TrainerPanelState extends State<TrainerPanel> {
             child: SpotCard(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
               child: Column(mainAxisAlignment: MainAxisAlignment.spaceBetween, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('REPS DONE', style: Sp.labelSm.copyWith(color: Sp.muted)),
-                Text('${c.count.toInt()}', style: Sp.displayMetric.copyWith(fontSize: 44, height: 1, color: Sp.white)),
+                Text('REPS · SET ${c.setNumber}', style: Sp.labelSm.copyWith(color: Sp.muted)),
+                Text('${c.setReps}', style: Sp.displayMetric.copyWith(fontSize: 44, height: 1, color: Sp.white)),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(2),
                   child: LinearProgressIndicator(

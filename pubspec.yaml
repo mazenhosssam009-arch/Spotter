@@ -86,6 +86,9 @@ flutter:
     # Egyptian voices made with the open-source NAMAA model (tool/make_egyptian_voice_namaa.py)
     - assets/voice/ar_eg/namaa_male/
     - assets/voice/ar_eg/namaa_female/
+    # Egyptian voices made with ElevenLabs (tool/make_egyptian_voice_elevenlabs_voices.py)
+    - assets/voice/ar_eg/ziad/
+    - assets/voice/ar_eg/yasmine/
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
