@@ -80,6 +80,41 @@ def drop_end_noise(pcm, rate):
     return out.tobytes()
 
 
+def trim_strays(pcm, rate):
+    """[pcm] without the short sounds that [strays] finds at its start / end (60 ms of the pause
+    before / after the speech is kept, the new end fades out so the cut does not click)"""
+    head, tail = strays(pcm, rate)
+    if not head and not tail:
+        return pcm
+    a, n, peak = _frames(pcm, rate)
+    quiet = max(250, max(peak) * 0.06)
+    keep = 60 // FRAME_MS
+    start, end = 0, len(peak)
+    if head:  # skip the click, then the pause after it
+        i = 0
+        while peak[i] < quiet:
+            i += 1
+        while peak[i] >= quiet:
+            i += 1
+        while peak[i] < quiet:
+            i += 1
+        start = max(0, i - keep)
+    if tail:  # the same from the end
+        j = len(peak) - 1
+        while peak[j] < quiet:
+            j -= 1
+        while peak[j] >= quiet:
+            j -= 1
+        while peak[j] < quiet:
+            j -= 1
+        end = min(len(peak), j + 1 + keep)
+    out = a[start * n:end * n]
+    fade = min(rate // 50, len(out))
+    for i in range(fade):
+        out[len(out) - 1 - i] = int(out[len(out) - 1 - i] * i / fade)
+    return out.tobytes()
+
+
 def strays(pcm, rate, max_ms=160, gap_ms=200):
     """(start_ms, end_ms) of a short sound cut off from the speech by a silence at the very start /
     end of a clip: a sliver of the neighbouring line when a cut was put in the wrong pause.
