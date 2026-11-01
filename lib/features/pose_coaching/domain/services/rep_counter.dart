@@ -106,6 +106,7 @@ class RepCounter {
   double? lastRom;
   double? lastConsistency;
   final repDurations = <double>[];
+  bool lastRepFast = false; // the last counted rep was rushed (the coach says "slow down")
   String repLabel = '';
   String repDetail = '';
   FormLevel repLevel = FormLevel.good;
@@ -134,6 +135,7 @@ class RepCounter {
   // ---- sets and fatigue (the USER ends a set with the flag button) ----
   bool inSet = false; // lifting in the current set (starts at the first counted rep)
   int setNumber = 1, setReps = 0, lastSetReps = 0; // setNumber = the set you are doing now
+  final setHistory = <int>[]; // reps of each finished set, shown under the camera
   double setStart = 0, lastRepEnd = -99, lastSetSecs = 0;
   final setDurs = <double>[]; // per rep of the current set
   final setRoms = <double>[];
@@ -199,6 +201,7 @@ class RepCounter {
     setNumber = 1;
     setReps = 0;
     lastSetReps = 0;
+    setHistory.clear();
     setStart = 0;
     lastRepEnd = -99;
     lastSetSecs = 0;
@@ -250,9 +253,12 @@ class RepCounter {
     resetTracking(); // fresh start posture, no half-finished rep
   }
 
-  /// the next set starts empty
+  /// the next set starts empty (from 0); the finished set's reps are kept in [setHistory]
   void nextSet() {
-    if (setReps > 0) setNumber++;
+    if (setReps > 0) {
+      setHistory.add(setReps);
+      setNumber++;
+    }
     setReps = 0;
     inSet = false;
     setDurs.clear();
@@ -978,6 +984,8 @@ class RepCounter {
         : (repLabel == 'Partial' ? 'Go deeper for full depth' : '');
     repLabelTime = t;
     if (counted) count += 1;
+    // down and up in under fastRepSeconds = rushed (momentum, no control)
+    lastRepFast = counted && dur < _lim(e, 'fastRepSeconds', 1.2);
     // range of motion of this rep (squat is scored against full depth, not the 120 counting line;
     // deadlift against the user's own standing / bottom angles)
     final up = _up(e);

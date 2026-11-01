@@ -67,7 +67,9 @@ void main() {
     expect(counter.lastSetReps, 3);
     counter.nextSet();
     expect(counter.setNumber, 2);
-    expect(counter.setReps, 0);
+    expect(counter.setReps, 0); // the new set counts from 0
+    expect(counter.setHistory, [3]); // the finished set is kept
+    expect(counter.count, 3); // the workout total is unchanged
   });
 
   test('biceps curl: reps from 30 to 130 deg of elbow flexion count (no locked-out arm needed)', () {

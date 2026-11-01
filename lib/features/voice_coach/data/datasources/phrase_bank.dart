@@ -34,12 +34,13 @@ class PhraseBank {
   String get _thisSet => _slang ? 'في السِّت دَه' : 'في المَجْموعَة دي';
   String get _form => _slang ? 'الفورْم' : 'الأَداء';
 
-  /// "3 reps" / "تلاتة ريبس"
+  /// "3 reps" / "تلاتة ريبس". Plain style: 3-10 plural (تلات تكرارات), 11 and up singular
+  /// (تلاتة وتلاتين تكرارة), the way it is said
   String repCount(int n) {
     if (!_ar) return n == 1 ? '1 rep' : '$n reps';
     if (n == 1) return _slang ? 'ريب واحِد' : 'تَكْرارَة واحْدَة';
     if (n == 2) return _slang ? 'اِتْنَيْن$_p1$_reps' : 'تَكْرارْتين';
-    return '${number(n)}$_p1$_reps';
+    return '${number(n)}$_p1${!_slang && n > 10 ? _rep : _reps}';
   }
 
   // ------------------------------------------------------------------ numbers
@@ -120,7 +121,8 @@ class PhraseBank {
       return switch (_p) {
         CoachPersonality.calm => t,
         CoachPersonality.hype => '$t، يَلّا يا بَطَل!',
-        CoachPersonality.strict => '$t، دِلْوَقْتي!',
+        // strict: the plain cue the first time ("قلتلك، ..." when it is repeated)
+        CoachPersonality.strict => t,
         CoachPersonality.minimal => t,
       };
     }
@@ -323,13 +325,11 @@ class PhraseBank {
     if (_ar) {
       return switch (_p) {
         CoachPersonality.hype => '$e! يَلّا يا بَطَل، وَريني!',
-        CoachPersonality.strict => '$e. خَلّيك مُرَكِّز، ومِن غير غَلَط.',
         _ => '$e، يَلّا نِبْدَأ',
       };
     }
     return switch (_p) {
       CoachPersonality.hype => "$e! Let's go, show me what you've got!",
-      CoachPersonality.strict => '$e. Focus. No sloppy reps.',
       _ => "$e. Let's start.",
     };
   }

@@ -53,6 +53,8 @@ VOICES = {
 }
 # how it speaks (exaggeration up = more energy; tested by ear: punchier than the demo's 0.5)
 STYLE = {"exaggeration": 0.7, "temperature": 0.8, "cfg_weight": 0.5}
+# the male voice stuttered: calmer and faster (cfg_weight up = quicker pace), picked by ear
+STYLE_VOICE = {"namaa_male": {"exaggeration": 0.5, "temperature": 0.8, "cfg_weight": 0.9}}
 SEEDS = [1, 7, 42, 3, 99]  # a wrong clip is made again with the next seed
 MP3_KBPS = 48
 
@@ -68,8 +70,15 @@ SAY_AS = [
     ("، يَلّا يا بَطَل!", "!"),
     ("يَلّا نِ", "خَلّينا نِ"),
     ("يَلّا بينا!", "خَلّينا نِبْدَأ!"),
-    ("قول يَلّا", "قول جاهِز"),  # جاهز is a voice command too
+    ("قول يَلّا، أَو وَقْت زِيادَة", "قول جاهِز، وَلّا عايِز وَقْت زِيادَة"),  # جاهز is a voice command too
+    ("قول يَلّا", "قول جاهِز"),
     ("! يَلّا!", "!"),
+    ("بِهُدوء، مَتِسْتَعْجِلْش في الحَرَكَة", "بِرّاحَه، اِهْدى"),
+    ("تَكْرارات", "عَدّات"),
+    ("تَكْرارْتين", "عَدّتين"),
+    ("تَكْرارَة", "عَدّة"),
+    ("نِزْلَة", "نَزْلَة"),
+    ("بايسبس كيرل", "بايْسِبْس كيرْل"),
     ("ريب واحِد", "عَدّة وَحْدَة"),
     ("ريب مِش كامْلَة", "دي مِش كامْلَة"),
     ("نُصّ ريب", "نُصّ عَدّة"),
@@ -82,6 +91,8 @@ SAY_AS_VOICE = {
     "namaa_female": [("ريبْس", "رِبْس"), ("بنش بريس", "بنش برس"), ("تِدْخُل لِجُوَّه", "تدخل لجوه"), ("لِجُوَّه", "لجوه")],
     "namaa_male": [("ريبْس", "رِبس"), ("بنش بريس", "بَنْش بْرِس"), ("تِدْخُل لِجُوَّه", "تدخل لجوه"), ("لِجُوَّه", "لجوه")],
 }
+
+KEEP_Q = ("مُسْتَقيم",)  # said with ق (the rest becomes ء)
 
 SAMPLE_LINES = [
     "اِرْفَع صِدْرَك، يَلّا يا بَطَل!",
@@ -171,6 +182,10 @@ def spoken(text, folder):
         return "اِبْدَأ!"
     for a, b in SAY_AS + SAY_AS_VOICE.get(folder, []):
         text = text.replace(a, b)
+    # Egyptian ق is a hamza (قول = ءول), except in the words the user wants with ق
+    text = " ".join(w if any(k in w for k in KEEP_Q) else w.replace("ق", "ء") for w in text.split(" "))
+    # ة before another word is read "-at" (الراحة خلصت = el-ra7at): write ه
+    text = re.sub(r"ة(?=[ً-ْ]*\s)", "ه", text)
     return WORD_END.sub("", text)
 
 
@@ -211,12 +226,12 @@ class Namaa:
         self.model.t3.to(self.device).eval()
         self.sr = self.model.sr
 
-    def say(self, text, ref, seed):
+    def say(self, text, ref, seed, style=STYLE):
         """16-bit mono PCM bytes of [text] in the voice of [ref]"""
         self.torch.manual_seed(seed)
         if self.device == "cuda":
             self.torch.cuda.manual_seed_all(seed)
-        wav = self.model.generate(text, language_id="ar", audio_prompt_path=ref, **STYLE)
+        wav = self.model.generate(text, language_id="ar", audio_prompt_path=ref, **style)
         samples = wav.squeeze(0).clamp(-1, 1).cpu().numpy()
         return (samples * 32767).astype("int16").tobytes()
 
@@ -309,7 +324,7 @@ def sample():
         out = os.path.join(TRY_DIR, folder)
         os.makedirs(out, exist_ok=True)
         for i, line in enumerate(SAMPLE_LINES, 1):
-            pcm = trim(tts.say(spoken(line, folder), ref, SEEDS[0]), tts.sr)
+            pcm = trim(tts.say(spoken(line, folder), ref, SEEDS[0], STYLE_VOICE.get(folder, STYLE)), tts.sr)
             with open(os.path.join(out, f"{i:02d}.wav"), "wb") as f:
                 f.write(wav_bytes(pcm, tts.sr))
         print(f"  {out}")
@@ -351,7 +366,7 @@ def record():
             text = spoken(t, folder)
             best, best_score = None, -1.0
             for seed in SEEDS if checker else SEEDS[:1]:
-                pcm = trim(tts.say(text, ref, seed), tts.sr)
+                pcm = trim(tts.say(text, ref, seed, STYLE_VOICE.get(folder, STYLE)), tts.sr)
                 if not checker:
                     best = pcm
                     break

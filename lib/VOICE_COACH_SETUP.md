@@ -191,6 +191,18 @@ python tool/make_egyptian_voice_gemini.py --record puck zephyr
 
 ---
 
+# Egyptian voices with ElevenLabs (Ziad, Yasmine)
+
+Two Egyptian voices from the ElevenLabs Voice Library (needs a paid plan, Starter is enough:
+both voices together are ~17k characters). Put your API key in the environment variable
+`ELEVENLABS_API_KEY` (never in a project file). They show in the settings as "Ziad" / "Yasmine";
+when Puck / Zephyr are not recorded, the app uses them first.
+
+Setup and use: see the top of `tool/make_egyptian_voice_elevenlabs_voices.py` (`--sample`, then `--record`). How each line is
+said can be changed in the yellow column of `tool/elevenlabs_say_as.xlsx`.
+
+---
+
 # Egyptian voices with NAMAA (open source, made on a PC)
 
 [NAMAA-Egyptian-TTS](https://huggingface.co/NAMAA-Space/NAMAA-Egyptian-TTS) by the NAMAA
