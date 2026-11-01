@@ -246,10 +246,17 @@ def heard(model, clips, rate):
         return None
 
 
-def matches(said, line):
+def matches(said, line, others=()):
+    """the clip says [line]: close enough to it, and closer to it than to every other line of the
+    batch (similar lines like "ديدليفت سومو / روماني، يلا نبدأ" got swapped and passed a plain check)"""
     if re.search(r"[A-Za-z]{3,}", said):  # read the English instruction out loud
         return False
-    return difflib.SequenceMatcher(None, norm(said), norm(line)).ratio() >= 0.5
+
+    def score(t):
+        return difflib.SequenceMatcher(None, norm(said), norm(t)).ratio()
+
+    own = score(line)
+    return own >= 0.6 and all(own > score(o) for o in others if norm(o) != norm(line))
 
 
 # ------------------------------------------------------------------ saving
@@ -341,18 +348,33 @@ def record():
             if not got:
                 continue
             pcm, rate = got
+            pcm = audio_split.drop_end_noise(pcm, rate)
             clips = [pcm] if len(batch) == 1 else audio_split.split(pcm, rate, len(batch))
             if clips is None or not lengths_ok(clips, rate, texts):
                 continue
-            bad = []
+            if len(batch) == 1 and audio_split.strays(pcm, rate) != (0, 0):  # a click before / after the line
+                print("  a click before or after the line, recording again", flush=True)
+                continue
+            # a sliver of the next / previous line at the edge of a clip = a cut in the wrong
+            # pause (it sounded like a click after the line). That clip and the neighbour the
+            # sliver belongs to (it may miss its first / last sound) are recorded again.
+            bad = set()
+            if len(batch) > 1:
+                for i, c in enumerate(clips):
+                    head, tail = audio_split.strays(c, rate)
+                    if head:
+                        bad.update({i, i - 1} & set(range(len(batch))))
+                    if tail:
+                        bad.update({i, i + 1} & set(range(len(batch))))
             if check:
                 said = heard(check_model, clips, rate)
                 requests += 1
                 if said is None:
                     continue
-                bad = [i for i, (s, t) in enumerate(zip(said, texts)) if not matches(s, t)]
-                if len(bad) > len(batch) // 2:  # most are wrong: the cut itself is off
-                    continue
+                bad.update(i for i, (s, t) in enumerate(zip(said, texts)) if not matches(s, t, texts))
+            if len(bad) > len(batch) // 2:  # most are wrong: the cut itself is off
+                continue
+            bad = sorted(bad)
             for i, ((k, t), c) in enumerate(zip(batch, clips)):
                 if i in bad:
                     continue
@@ -362,7 +384,8 @@ def record():
             save_json(RECORDED, recorded, ensure_ascii=False, indent=1)
             if bad:
                 # the good clips are kept; only the wrong lines are recorded again
-                print(f"  {len(bad)} clip(s) did not match their line, recording only those again", flush=True)
+                print(f"  {len(bad)} clip(s) were cut badly or did not match their line, "
+                      "recording only those again", flush=True)
                 return record_batch(folder, voice, [batch[i] for i in bad], out_dir, state)
             return True
         if len(batch) >= 4:  # cut in half and try the halves (smaller: line by line)
@@ -386,8 +409,9 @@ def record():
                     if state.get(k) != t or not os.path.exists(os.path.join(out_dir, k + ".mp3"))]
             print(f"{voice} ({gender}): {len(pieces) - len(todo)} done, {len(todo)} to record")
             failed_in_row = 0
-            for i in range(0, len(todo), BATCH):
-                batch = todo[i:i + BATCH]
+            size = int(sys.argv[sys.argv.index("--batch") + 1]) if "--batch" in sys.argv else BATCH
+            for i in range(0, len(todo), size):
+                batch = todo[i:i + size]
                 failed_in_row = 0 if record_batch(folder, voice, batch, out_dir, state) else failed_in_row + 1
                 if failed_in_row >= 2:
                     # something keeps going wrong with this voice: do not burn the daily limit
@@ -401,12 +425,15 @@ def record():
                     os.remove(os.path.join(out_dir, name))
             recorded[folder] = {k: v for k, v in state.items() if k in pieces}
             save_json(RECORDED, recorded, ensure_ascii=False, indent=1)
-            complete = all(recorded[folder].get(k) == t and os.path.exists(os.path.join(out_dir, k + ".mp3"))
-                           for k, t in pieces.items())
-            if complete:
+            # a file name is the hash of its exact line, so "every file exists" = every line has a
+            # clip. Lines marked for recording again keep their old clip in the app meanwhile.
+            have_all = all(os.path.exists(os.path.join(out_dir, k + ".mp3")) for k in pieces)
+            pending = [t for k, t in pieces.items() if recorded[folder].get(k) != t]
+            if have_all:
                 manifest[folder] = sorted(pieces)
                 save_json(MANIFEST, manifest, indent=1)
-                print(f"{voice}: complete, now in the app (manifest.json)")
+                print(f"{voice}: in the app (manifest.json)"
+                      + (f"; {len(pending)} line(s) still to record again (run the same command again)" if pending else ", complete"))
             else:
                 manifest.pop(folder, None)
                 save_json(MANIFEST, manifest, indent=1)
