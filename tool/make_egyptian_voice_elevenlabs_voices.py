@@ -45,7 +45,6 @@ SEED = 1
 SAY_AS = [
     ("دي كانِت سْكوات مِش ديدْليفْت، اِتْني مِن وِسْطَك", "دي كانِت سْكوات مِش ديدْليفْت، اِتْني وِسْطَك"),
     ("البار مايِل، اِدْفَع بِإيدَيْك الاِتْنَيْن زَيّ بَعْض", "البار مِش مَظْبوط، خَلّي إيدَك الاِتْنين مَفْرودين زَيّ بَعْض"),
-    ("ظَبَّط وَقْفِتَك", "ظَبَّط جِسْمَك"),
     ("قول يَلّا، أَو وَقْت زِيادَة", "قول جاهِز. وَلّا عايِز وَقْت زِيادَة؟"),  # جاهز is a voice command too
     ("قول يَلّا", "قول جاهِز"),
     ("بِهُدوء، مَتِسْتَعْجِلْش في الحَرَكَة", "بِرّاحَة، اِهْدى"),
@@ -57,7 +56,7 @@ SAY_AS = [
 TASHKEEL = re.compile(r"[ً-ْٰ]")
 # after the tashkeel is removed: whole words the voices said wrong, picked by ear
 PLAIN_FIX = [
-    ("عدة", "عَدّة"),  # 3adda, not 3edda
+    ("عد([ةه])", r"عَدّ\1"),  # 3adda, not 3edda
     ("عدات", "عَدّات"),
     ("عدتين", "عَدّتين"),
     ("ركبتك", "رُكبتك"),  # rokbetak
@@ -69,20 +68,58 @@ PLAIN_FIX = [
     ("قلتلك", "ءُلتِلَك"),  # 2oltelak
     ("(?<!legowwa )شوية", "شُوَيّة"),
     ("رقم قياسي", "رَقَم قِياسي"),  # rakam keyasy (said with ق)
+    ("متميلش بجسمك", "متمِلش بجِسمك"),  # matmelsh bgesmak
+    ("كمل الحرك[ةه] للآخر", "كَمِّل الحَرَكَة لِلْءاخِر"),  # kamel el 7araka ll 2a5er
+    ("الحرك[ةه]", "الحَرَكَة"),
+    ("ظبط", "ظَبَّط"),  # zabbat
+    ("وقفتك", "وَءْفِتَك"),  # zabbat wa2fetak
+    ("بدأت تتعب", "بَدَأْت تِتْعَب"),  # bada2t tet3ab
+    ("خد نفسك وخليك مركز", "خُد نَفَسَك"),  # you asked to drop وخليك مركز
+    ("خد نفسك", "خُد نَفَسَك"),  # 5od nafasak
+    ("لقدام", "لِءُدّام"),  # l2odam
+    ("نزل[ةه]", "نَزْلة"),  # nazla, not nazala
+    ("هسكت دلوقتي", "هَسْكُت دِلْوَءتي"),  # haskot delwa2ty
+    ("متلفش", "متلِفِّش"),  # leff
+    ("لف", "لِفّ"),
 ]
+# the number clips: your spelling (1-20), the tens with the same care; a short word said without
+# tashkeel lost its end (arba3ee, 5amsee)
+UNITS = {"واحد": "وَاحِد", "اتنين": "اِتْنِين", "تلاتة": "تَلَاتَة", "أربعة": "أَرْبَعَة", "خمسة": "خَمْسَة",
+         "ستة": "سِتَّة", "سبعة": "سَبْعَة", "تمانية": "تَمَانْيَة", "تسعة": "تِسْعَة"}
+TEENS = {"عشرة": "عَشَرَة", "حداشر": "حِدَاشَر", "اتناشر": "اِطْنَاشَر", "تلاتطاشر": "طلَطَّاشَر",
+         "أربعطاشر": "أَرْبَعْطَاشَر", "خمسطاشر": "خَمَسْطَاشَر", "ستاشر": "سِطَّاشَر", "سبعطاشر": "سَبْعَطَاشَر",
+         "تمانطاشر": "تَمَنْطَاشَر", "تسعطاشر": "تِسْعَطَاشَر"}
+TENS = {"عشرين": "عِشْرِين", "تلاتين": "تَلَاتِين", "أربعين": "إرْبِعين", "خمسين": "خَمسين",
+        "ستين": "سِتِّين", "سبعين": "سَبْعِين", "تمانين": "تَمَانِين", "تسعين": "تِسْعِين", "مية": "مِيَّة"}
+
+
+def number_say(text, voice):
+    """a number clip (تلاتة, سبعطاشر, خمسة وخمسين) as the voice says it, else None"""
+    t = text.strip(" .!،")
+    one = {**UNITS, **TEENS, **TENS}
+    if t in one:
+        return one[t]
+    m = re.fullmatch(r"(\S+) و(\S+)", t)
+    if m and m.group(1) in UNITS and m.group(2) in TENS:
+        unit, ten = UNITS[m.group(1)], TENS[m.group(2)]
+        if unit.endswith("ة"):  # talata w talateen without a gap: what each voice said right
+            return unit[:-1] + ("ة و" if voice == "ziad" else "ا و") + ten  # sab3a w5amseen
+        return f"{unit} وِ{ten}"
+    return None
 # per voice, before PLAIN_FIX: legowwa in English letters gives the hard g; dom, not dum
 VOICE_FIX = {
     "ziad": [("ضم كوعك لجوه شوي[ةه]", "dom كوعك legowwa شوية"),
+             ("متميلش بجسمك", "مَتْمِلْش بجسمَك"),  # matmelsh gesmak (with a kasra on ج: jesmak)
+             ("نزل[ةه] ممتاز[ةه]", "نَزْلة مُمْتازَة"),  # nazla momtaza
              ("افتكر، براحة، اهدى", "إفتِكِر، بِرَّاحَة. اهدى"),  # efteker
              ("قلتلك، براحة", "قلتلك، بِرَّاحَة"),  # berra7a, not bra7a (this one was good)
              ("براحة، اهدى", "بِرَّاحَة. اهدى")],  # alone: with the stop it said berra7a
     "yasmine": [("ضم كوعك لجوه شوي[ةه]", "ضُم كوعك legowwa شوية"),
                 ("سكوات", "squats"),  # she said sakawat
+                ("متلفش", "مَتْلِفِّش"),  # matlefesh, not motlefesh
                 ("وريني", "يلا نبدأ"),  # her وريني sounded bad
                 ("براحة، اهدى", "بِرَّاحَة، اِهدا")],  # berra7a, ehda (not bra7a, ehdan)
 }
-# numbers 21-99 (تلاتة وتلاتين = talata w talateen without a gap): what each voice said right
-NUMBER_JOIN = {"ziad": r"\1ة وِ", "yasmine": r"\1ا و"}
 KEEP_Q = ("مستقيم", "قِياسي", "رَقَم")  # said with ق; in the other words ق is said ء, the Egyptian way
 
 SAMPLE_LINES = [
@@ -148,10 +185,11 @@ def default_spoken(text, voice=None, tashkeel=False):
     # the user does not want "يلا يا بطل" said
     text = re.sub(r"،\s*يلا يا بطل!", "!", text)
     text = re.sub(r"يلا يا بطل،\s*", "", text).strip() or "يلا"
+    num = number_say(text, voice)
+    if num:
+        return num
     # ة before another word is read with a stop: ه runs on
     text = re.sub(r"ة(?=\s)", "ه", text)
-    # numbers: ه said "talat", ة had a gap
-    text = re.sub(r"(تلات|أربع|خمس|ست|سبع|تماني|تسع)ه و", NUMBER_JOIN.get(voice, r"\1ا و"), text)
     for a, b in VOICE_FIX.get(voice, []) + PLAIN_FIX:
         text = re.sub(rf"(?<![ء-ي]){a}(?![ء-ي])", b, text)
     return " ".join(w if any(k in w for k in KEEP_Q) else w.replace("ق", "ء") for w in text.split(" "))

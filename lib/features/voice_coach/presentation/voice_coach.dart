@@ -30,7 +30,7 @@ class _Utterance {
 /// The voice coach of one workout. It watches the TrainerBloc and decides what to say:
 /// - form warnings by severity: a clear fault (one that rejects the rep) is said at once
 ///   and may interrupt; a smaller one only when it lasts 1 s or keeps coming back
-/// - a cooldown per warning (7 s) and a short gap between warnings, so it never spams;
+/// - a cooldown per warning (10 s) and a 5 s gap between warnings, so it never spams;
 ///   when the user keeps doing it the wording changes ("Remember, ...")
 /// - only the most important problem is said when there are several (safety first)
 /// - rep counts, rep results (deep / partial / not counted), rep-goal motivation
@@ -409,9 +409,9 @@ class VoiceCoach {
       }
     }
 
-    // a rushed rep: "slow down" with the count (same 7 s cooldown as the warning)
+    // a rushed rep: "slow down" with the count (same 10 s cooldown as the warning)
     if (counted && c.lastRepFast && _atLeast(CoachVerbosity.warnings) &&
-        t - (_lastSpoken[CoachCue.slowDown] ?? -99) >= 7) {
+        t - (_lastSpoken[CoachCue.slowDown] ?? -99) >= 10) {
       parts.add(_say.cue(CoachCue.slowDown));
       _lastSpoken[CoachCue.slowDown] = t;
     }
@@ -458,7 +458,9 @@ class VoiceCoach {
     final gate = c.gateMsg;
     final cue = gate == null ? null : CoachCue.fromGate(gate);
     if (cue != _lastGate) {
-      if (cue != null && (cue != CoachCue.getInPosition || _lastGate == null)) {
+      // half in the picture the message can change every second: at least 8 s between two
+      // (a skipped one is said by the reminder below)
+      if (cue != null && (cue != CoachCue.getInPosition || _lastGate == null) && t - _gateSpokenAt >= 8) {
         _enqueue(_say.cue(cue), _pSetup, maxAge: 3, key: 'setup');
         _gateSpokenAt = t;
       }
@@ -507,7 +509,7 @@ class VoiceCoach {
       final apps = _appearances.putIfAbsent(cue, () => <double>[])..removeWhere((x) => t - x > 20);
       final recurring = apps.length >= 2;
       if (!(severe || lasting || recurring)) continue;
-      if (t - (_lastSpoken[cue] ?? -99) < 7) continue; // cooldown per warning
+      if (t - (_lastSpoken[cue] ?? -99) < 10) continue; // cooldown per warning
       final better = best == null ||
           (severe && !bestSevere) ||
           (severe == bestSevere && cue.priority > best.priority);
@@ -517,7 +519,7 @@ class VoiceCoach {
       }
     }
     if (best == null || !_atLeast(CoachVerbosity.warnings)) return;
-    if (t - _lastWarningAt < 2.5) return; // a short gap between two warnings
+    if (t - _lastWarningAt < 5) return; // a gap between two warnings: not one after the other
     // the coach is talking (or a rep count is waiting): a normal warning waits for a
     // quiet moment instead of piling up; only a clear fault gets in at once
     if (!bestSevere && (_busy || _queue.isNotEmpty)) return;
