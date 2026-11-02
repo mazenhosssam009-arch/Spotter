@@ -166,31 +166,30 @@ class _CameraViewState extends State<CameraView> {
         title: Text(widget.title),
         actions: [
           // too many buttons (e.g. curls: + the arm picker) covered the back button on a phone:
-          // keep room for it and scroll the buttons instead
+          // keep room for it; if they still do not fit they scroll, with the first one (the
+          // voice coach) always in view
           ConstrainedBox(
             constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 72),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              reverse: true,
               child: Row(mainAxisSize: MainAxisSize.min, children: [
           ...?widget.actions,
           Padding(
             padding: const EdgeInsets.only(left: 4, right: 8),
-            child: Material(
-              color: Sp.card,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(Sp.rChip), side: const BorderSide(color: Sp.mint)),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(Sp.rChip),
-                onTap: () => setState(() => _fill = !_fill),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(_fill ? Icons.fit_screen : Icons.fullscreen, size: 18, color: Sp.mint),
-                    const SizedBox(width: 6),
-                    // shows what a tap will do
-                    Text(_fill ? 'FIT' : 'FILL', style: Sp.labelMd.copyWith(color: Sp.mint)),
-                  ]),
+            child: Tooltip(
+              // the icon shows what a tap will do (an icon only: the bar has to fit on a phone)
+              message: _fill ? 'Fit the camera' : 'Fill the screen',
+              child: Material(
+                color: Sp.card,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(Sp.rChip), side: const BorderSide(color: Sp.mint)),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(Sp.rChip),
+                  onTap: () => setState(() => _fill = !_fill),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    child: Icon(_fill ? Icons.fit_screen : Icons.fullscreen, size: 18, color: Sp.mint),
+                  ),
                 ),
               ),
             ),

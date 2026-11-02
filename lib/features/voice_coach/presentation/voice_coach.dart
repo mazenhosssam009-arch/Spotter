@@ -98,6 +98,7 @@ class VoiceCoach {
   // setup
   CoachCue? _lastGate;
   double _gateSpokenAt = -99;
+  double _goAt = -99; // "go" once, not again every time the position flickers
   final _notesSaid = <CoachCue>{};
   double? _noPersonSince;
   bool _saidNoPerson = false, _saidLight = false;
@@ -158,7 +159,11 @@ class VoiceCoach {
 
   void _onSpeaking() {
     if (!listener.active) return;
-    engine.speaking.value ? listener.pause() : listener.resume();
+    if (engine.speaking.value) {
+      listener.pause();
+    } else if (!_busy && _queue.isEmpty) {
+      listener.resume(); // only when nothing else is about to be said
+    }
   }
 
   void toggleMute() {
@@ -218,11 +223,13 @@ class VoiceCoach {
         if (now() - u.created > u.maxAge || !(_on || u.force)) continue;
         _currentPriority = u.priority;
         u.onSaid?.call();
+        if (listener.active) await listener.hold(); // the microphone off BEFORE the voice starts
         await engine.speak(u.text);
       }
     } finally {
       _busy = false;
       _currentPriority = 0;
+      if (listener.active && !engine.speaking.value) listener.resume();
     }
   }
 
@@ -256,7 +263,7 @@ class VoiceCoach {
       _resetSet();
       if (_on && _s.accessibility) _enqueue(_say.setStarting(c.setNumber), _pCountdown, maxAge: 3);
     } else if (st.phase == WorkoutPhase.active && from == WorkoutPhase.getReady) {
-      if (_atLeast(CoachVerbosity.warningsReps)) _enqueue(_say.go, _pCountdown, maxAge: 2);
+      if (_atLeast(CoachVerbosity.warningsReps)) _sayGo(now());
       _lastCount = c.count;
       _lastRepLabelTime = c.repLabelTime;
     }
@@ -431,6 +438,14 @@ class VoiceCoach {
     if (parts.isNotEmpty) _enqueue(parts.join(ClipText.sentence), priority, maxAge: 3, key: 'rep');
   }
 
+  /// "go" / "يلا": at most once in 20 s, so flickering in and out of position is not
+  /// "go, go, go"
+  void _sayGo(double t) {
+    if (t - _goAt < 20) return;
+    _goAt = t;
+    _enqueue(_say.go, _pCountdown, maxAge: 2, key: 'go');
+  }
+
   void _onSetup(TrainerState st, RepCounter c, double t) {
     if (!_atLeast(CoachVerbosity.warnings)) return;
 
@@ -458,6 +473,9 @@ class VoiceCoach {
     final gate = c.gateMsg;
     final cue = gate == null ? null : CoachCue.fromGate(gate);
     if (cue != _lastGate) {
+      // the user did what was asked (or something else is wrong now): an older position
+      // message still waiting is not said any more
+      _queue.removeWhere((u) => u.key == 'setup');
       // half in the picture the message can change every second: at least 8 s between two
       // (a skipped one is said by the reminder below)
       if (cue != null && (cue != CoachCue.getInPosition || _lastGate == null) && t - _gateSpokenAt >= 8) {
@@ -466,7 +484,7 @@ class VoiceCoach {
       }
       // the 5 s setup is over: start
       if (_lastGate == CoachCue.getInPosition && cue == null && _atLeast(CoachVerbosity.warningsReps)) {
-        _enqueue(_say.go, _pCountdown, maxAge: 2, key: 'setup');
+        _sayGo(t);
       }
       _lastGate = cue;
     } else if (cue != null && cue != CoachCue.getInPosition && t - _gateSpokenAt > 12) {

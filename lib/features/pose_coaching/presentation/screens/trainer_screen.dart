@@ -255,7 +255,7 @@ class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver 
           () => showVoiceQuickSheet(context, _coach),
         ),
       ),
-      _pill(Icons.timer_outlined, 'Timer', 'Rest timer', _restSettings),
+      _pill(Icons.timer_outlined, '', 'Rest timer', _restSettings), // icon only: the bar fits a phone
       _pill(Icons.school_outlined, '', 'How to do this exercise', () => showExerciseGuide(context, widget.exercise)),
       if (widget.exercise.name.contains('Bench'))
         watch((c) => IconButton(

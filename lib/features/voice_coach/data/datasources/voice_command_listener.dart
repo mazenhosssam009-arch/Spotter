@@ -75,10 +75,18 @@ class VoiceCommandListener {
     if (_stt.isListening) _stt.stop();
   }
 
+  /// stops listening before the coach speaks and gives the phone a moment to hand the audio
+  /// back: on iPhone the recognizer switching the audio off cut the first words ("thr...")
+  Future<void> hold() async {
+    final was = _stt.isListening;
+    pause();
+    if (was) await Future<void>.delayed(const Duration(milliseconds: 250));
+  }
+
   void resume() {
     if (!_paused) return;
     _paused = false;
-    _restartSoon(300);
+    _restartSoon(1000); // not between two sentences: the next one may follow at once
   }
 
   Future<void> stop() async {

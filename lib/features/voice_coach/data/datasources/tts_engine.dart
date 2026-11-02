@@ -15,9 +15,16 @@ import 'package:ai_trainer/features/voice_coach/domain/entities/voice_settings.d
 
 /// one voice installed on the phone
 class VoiceInfo {
-  const VoiceInfo({required this.name, required this.locale, this.gender});
+  const VoiceInfo({required this.name, required this.locale, this.gender, this.quality = 0, this.identifier});
   final String name;
   final String locale;
+
+  /// iPhone: 2 premium, 1 enhanced, 0 normal / unknown; -1 a novelty or old robotic voice
+  /// (Fred, Zarvox, Eloquence...) that must never be picked by itself
+  final int quality;
+
+  /// iPhone voice id: picks exactly this voice (the name alone can match a worse copy)
+  final String? identifier;
 
   /// null = the phone does not say (we could not guess it)
   final VoiceGender? gender;
@@ -104,7 +111,14 @@ class TtsEngine {
           final name = '${v['name'] ?? ''}';
           final locale = '${v['locale'] ?? ''}';
           if (name.isEmpty || locale.isEmpty) continue;
-          out.add(VoiceInfo(name: name, locale: locale, gender: _guessGender(name, v['gender'])));
+          final id = '${v['identifier'] ?? ''}';
+          out.add(VoiceInfo(
+            name: name,
+            locale: locale,
+            gender: _guessGender(name, v['gender']),
+            quality: _quality('${v['quality'] ?? ''}', id),
+            identifier: id.isEmpty ? null : id,
+          ));
         }
       }
     } catch (e) {
@@ -112,6 +126,14 @@ class TtsEngine {
     }
     _voiceCache = out;
     return out;
+  }
+
+  /// the robotic iPhone voices are the novelty ones (com.apple.speech.synthesis.voice.Fred,
+  /// Zarvox, Bells...) and the old Eloquence ones (com.apple.eloquence.*)
+  static int _quality(String q, String id) {
+    final i = id.toLowerCase();
+    if (i.contains('speech.synthesis.voice') || i.contains('eloquence')) return -1;
+    return switch (q) { 'premium' => 2, 'enhanced' => 1, _ => 0 };
   }
 
   /// iOS gives the gender; Android only gives a name, so known Google voice codes are used.
@@ -173,6 +195,8 @@ class TtsEngine {
       if (s.arabic && v.egyptian) sc += 5;
       if (!s.arabic && loc.startsWith('en-us')) sc += 3;
       if (v.name.toLowerCase().contains('local')) sc += 1; // offline voice: no delay
+      sc += v.quality * 4; // iPhone: Premium / Enhanced sound natural, the basic ones robotic
+      if (v.quality < 0) sc -= 100;
       return sc;
     }
 
@@ -191,7 +215,7 @@ class TtsEngine {
       final v = _pick(voices, s);
       if (v != null) {
         await _tts.setLanguage(v.locale);
-        await _tts.setVoice({'name': v.name, 'locale': v.locale});
+        await _tts.setVoice({'name': v.name, 'locale': v.locale, if (v.identifier != null) 'identifier': v.identifier!});
       } else {
         await _tts.setLanguage(s.arabic ? 'ar' : 'en-US');
       }
