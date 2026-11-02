@@ -22,8 +22,8 @@ SPEAKERS = {
     "female": ["Hadeer", "Hanan", "Mariam", "Rana", "Sarah", "Yasmin", "Yara"],
 }
 CACHE = "/content/voicetut_cache"
-# how it speaks (a gym coach: a bit quicker; num_step 32 = the quality of the VoiceTut demo)
-STYLE = {"speed": 1.1, "num_step": 32}
+# how it speaks: the demo's normal speed (faster sounded worse), num_step 32 = demo quality
+STYLE = {"speed": 1.0, "num_step": 32}
 RATE = 24000
 TASHKEEL = re.compile(r"[ً-ْٰ]")
 
@@ -38,7 +38,7 @@ LINES = {
 PHRASES = [
     ("ضم كوعك لجوه شوية", "ضُمّ كُوعَك لِجُوَّه شُوَيَّة"),
     ("متخليش ركبتك تدخل لجوه", "مَتْخَلِّيش رُكْبِتَك تِدْخُل لِجُوَّه"),
-    ("خلي ضهرك مستقيم", "خَلِّي ضَهْرَك مُسْتَقِيم"),
+    ("خلي ضهرك مستقيم", "خَلِّي ضَهْرَك مُسْتَقِيم"),  # checked: good
     ("تكرارات", "عَدَّات"), ("تكرارتين", "عَدِّتين"), ("تكرارة", "عَدَّة"),
     ("بهدوء، متستعجلش في الحركة", "بِرَّاحَة، اِهْدَا"),
 ]
