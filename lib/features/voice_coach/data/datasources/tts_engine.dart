@@ -34,7 +34,8 @@ class VoiceInfo {
   /// readable label for the settings list
   String get label {
     final g = gender == null ? '' : (gender == VoiceGender.male ? ' · male' : ' · female');
-    return '$name ($locale)$g';
+    final q = switch (quality) { 2 => ' · Premium', 1 => ' · Enhanced', _ => '' };
+    return '$name ($locale)$g$q';
   }
 }
 
@@ -164,8 +165,9 @@ class TtsEngine {
   }
 
   Future<VoiceSupport> support(VoiceSettings s) async {
-    final voices = (await allVoices()).where((v) => _isLang(v, s.language)).toList()
-      ..sort((a, b) => a.label.compareTo(b.label));
+    // the joke / old robotic iPhone voices are not offered; the best sounding first
+    final voices = (await allVoices()).where((v) => _isLang(v, s.language) && v.quality >= 0).toList()
+      ..sort((a, b) => a.quality != b.quality ? b.quality - a.quality : a.label.compareTo(b.label));
     var available = voices.isNotEmpty;
     if (!available) {
       // some engines list no voices but still speak the language
@@ -185,7 +187,7 @@ class TtsEngine {
     if (lang.isEmpty) return null;
     if (s.voiceName != null) {
       for (final v in lang) {
-        if (v.name == s.voiceName) return v;
+        if (v.name == s.voiceName && v.quality >= 0) return v; // a robotic one picked before: ignored
       }
     }
     int score(VoiceInfo v) {

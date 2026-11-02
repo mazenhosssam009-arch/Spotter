@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -252,6 +253,13 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
                             'Install voice data > Arabic. iPhone: Settings > Accessibility > Spoken Content > Voices > Arabic.'
                         : 'No English voice is installed. Install one in the phone\'s text-to-speech settings.',
                   ),
+                // iPhones ship only basic voices; the natural ones are a free download
+                if (sup.available && !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS &&
+                    !voices.any((v) => v.quality > 0) && !(s.arabic && _pack && s.egyptianClips))
+                  _note(Icons.download_outlined,
+                      'The phone voice sounds robotic because only basic voices are installed. Free fix: '
+                      'Settings > Accessibility > Spoken Content > Voices > ${s.arabic ? 'Arabic' : 'English'} > '
+                      'download a voice marked Enhanced or Premium. The coach then uses it by itself.'),
                 if (sup.available && s.arabic && !sup.hasEgyptian)
                   _note(Icons.info_outline,
                       'Your phone has no Egyptian (ar-EG) voice, so a general Arabic voice reads the Egyptian text. '
