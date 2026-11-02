@@ -102,7 +102,8 @@ def mp3(path_wav):
     enc.set_in_sample_rate(rate)
     enc.set_channels(1)
     enc.set_quality(2)
-    return enc.encode(np.ascontiguousarray(audio).tobytes()) + enc.flush()
+    # bytes, not bytearray: the web server only sends bytes (a new line failed, a cached one worked)
+    return bytes(enc.encode(np.ascontiguousarray(audio).tobytes()) + enc.flush())
 
 
 def synthesize(text, speaker):
