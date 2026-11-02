@@ -10,6 +10,7 @@ import 'package:ai_trainer/features/voice_coach/data/datasources/voice_command_l
 import 'package:ai_trainer/features/voice_coach/domain/entities/egyptian_voice.dart';
 import 'package:ai_trainer/features/voice_coach/domain/entities/voice_settings.dart';
 import 'package:ai_trainer/features/voice_coach/presentation/cubit/voice_settings_cubit.dart';
+import 'package:ai_trainer/features/voice_coach/presentation/widgets/voicetut_section.dart';
 import 'package:ai_trainer/injection_container.dart';
 
 /// everything about the voice coach: language, voice, personality, how much it talks,
@@ -214,10 +215,27 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
                         child: Text('Egyptian voice: ${v.name}${v.isDefault ? ' (default)' : ''}'),
                       ),
                   ],
-                  onChanged: (id) => _set((x) => EgyptianVoice.byId(id)?.isDefault ?? true
+                  onChanged: (id) => _set((x) => id == null || EgyptianVoice.byId(id)?.isDefault == true
                       ? x.copyWith(clearEgyptianVoice: true)
                       : x.copyWith(egyptianVoice: id)),
                 ),
+              ],
+              if (s.arabic && s.egyptianClips) ...[
+                const SizedBox(height: 16),
+                VoiceTutSection(
+                  gender: s.gender,
+                  onReady: (id) async {
+                    _engine.refreshClips();
+                    final v = await _engine.egyptianVoices();
+                    if (!mounted) return;
+                    setState(() {
+                      _egVoices = v;
+                      _pack = true;
+                    });
+                    _set((x) => x.copyWith(egyptianVoice: id));
+                  },
+                ),
+                const SizedBox(height: 8),
               ],
               if (s.arabic && _pack && s.egyptianClips)
                 _note(Icons.record_voice_over_outlined,

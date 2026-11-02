@@ -10,6 +10,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:ai_trainer/features/voice_coach/data/datasources/clip_text.dart';
+import 'package:ai_trainer/features/voice_coach/data/datasources/voicetut_pack.dart';
 import 'package:ai_trainer/features/voice_coach/domain/entities/egyptian_voice.dart';
 import 'package:ai_trainer/features/voice_coach/domain/entities/voice_settings.dart';
 
@@ -74,6 +75,7 @@ class TtsEngine {
   // we activate the audio session ourselves (duck / pause the music, then give it back)
   final _player = AudioPlayer(handleAudioSessionActivation: false);
   Map<String, Set<String>>? _clips; // 'male' / 'female' -> clip keys in the app
+  final _diskDirs = <String, String>{}; // VoiceTut voices saved on the phone: folder -> directory
   AudioSession? _session;
   VoiceSettings? _applied;
   List<VoiceInfo>? _voiceCache;
@@ -323,8 +325,17 @@ class TtsEngine {
     } catch (_) {
       // no clip pack in the app: the phone voice is used
     }
+    // VoiceTut voices downloaded from the user's server (saved on the phone)
+    _diskDirs.clear();
+    for (final e in (await VoiceTutPack.installed()).entries) {
+      out[e.key] = e.value;
+      _diskDirs[e.key] = await VoiceTutPack.dir(e.key);
+    }
     return _clips = out;
   }
+
+  /// a VoiceTut voice was downloaded or deleted: read the voices again
+  void refreshClips() => _clips = null;
 
   /// just_audio plays an asset from a copy in the temp folder and never refreshes that copy, so
   /// after an app update the phone kept playing the clips of the first install (fixed clips never
@@ -346,7 +357,11 @@ class TtsEngine {
   /// manifest.json once all its clips are recorded)
   Future<List<EgyptianVoice>> egyptianVoices() async {
     final clips = await _loadClips();
-    return [for (final v in EgyptianVoice.all) if (clips[v.id]?.isNotEmpty ?? false) v];
+    return [
+      for (final v in EgyptianVoice.all) if (clips[v.id]?.isNotEmpty ?? false) v,
+      for (final f in _diskDirs.keys)
+        if (VoiceTutPack.speakerOf(f) case final sp?) VoiceTutPack.voice(sp),
+    ];
   }
 
   /// which recorded voice to use, null = the phone voice. The picked voice, else the default
@@ -357,7 +372,9 @@ class TtsEngine {
     final clips = await _loadClips();
     final other = s.gender == VoiceGender.male ? VoiceGender.female : VoiceGender.male;
     final picked = EgyptianVoice.byId(s.egyptianVoice);
+    final tut = VoiceTutPack.isPack(s.egyptianVoice) ? VoiceTutPack.speakerOf(s.egyptianVoice!) : null;
     final order = [
+      if (tut != null && VoiceTutPack.genderOf(tut) == s.gender) s.egyptianVoice!,
       if (picked != null && picked.gender == s.gender) picked.id,
       EgyptianVoice.defaultFor(s.gender).id,
       for (final v in EgyptianVoice.all)
@@ -382,7 +399,10 @@ class TtsEngine {
       if (has(pieces[i])) {
         final run = <AudioSource>[];
         while (i < pieces.length && has(pieces[i])) {
-          run.add(AudioSource.asset(ClipText.assetPath(folder, pieces[i])));
+          final disk = _diskDirs[folder];
+          run.add(disk != null
+              ? AudioSource.file('$disk/${ClipText.key(pieces[i])}.mp3')
+              : AudioSource.asset(ClipText.assetPath(folder, pieces[i])));
           i++;
         }
         speaking.value = true;
