@@ -27,8 +27,8 @@ TASHKEEL = re.compile(r"[ً-ْٰ]")
 
 # whole lines said differently (the app text without tashkeel -> what VoiceTut says)
 LINES = {
-    "الراحة خلصت، جاهز للست اللي جاي؟": "الرَّاحَة خِلْصِت. إِنْتَ جَاهِز؟",
-    "الراحة خلصت، جاهز للمجموعة اللي جاية؟": "الرَّاحَة خِلْصِت. إِنْتَ جَاهِز؟",
+    "الراحة خلصت، جاهز للست اللي جاي؟": "الرَّاحَة خِلْصِتْ. إِنْتَ جَاهِز؟",
+    "الراحة خلصت، جاهز للمجموعة اللي جاية؟": "الرَّاحَة خِلْصِتْ. إِنْتَ جَاهِز؟",
     "قول يلا، أو وقت زيادة": "ءُول جَاهِز. وَلَّا عَايِز وَءْت زِيَادَة؟",
     "بهدوء، متستعجلش في الحركة": "بِرَّاحَة، اِهْدَا",
 }
@@ -113,7 +113,11 @@ def synthesize(text, speaker):
     if os.path.exists(cached):
         return open(cached, "rb").read()
     wav = os.path.join(CACHE, name + ".wav")
-    with _lock:  # one line at a time on the GPU
+    import torch
+
+    # one line at a time on the GPU; inference mode in THIS thread too: the web server answers
+    # in other threads than the one that loaded the model (it worked in Colab, failed over HTTP)
+    with _lock, torch.inference_mode():
         model().synthesize(spoken, speaker=speaker, output=wav)
     data = mp3(wav)
     open(cached, "wb").write(data)
@@ -142,7 +146,13 @@ def app():
             raise HTTPException(400, f"unknown speaker {line.speaker}")
         if not line.text.strip():
             raise HTTPException(400, "empty text")
-        return Response(synthesize(line.text, line.speaker), media_type="audio/mpeg")
+        try:
+            return Response(synthesize(line.text, line.speaker), media_type="audio/mpeg")
+        except Exception as e:  # the reason goes back to the caller (and the Colab output)
+            import traceback
+
+            traceback.print_exc()
+            raise HTTPException(500, f"{type(e).__name__}: {e}")
 
     return api
 
