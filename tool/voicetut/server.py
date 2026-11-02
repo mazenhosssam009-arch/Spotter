@@ -22,6 +22,8 @@ SPEAKERS = {
     "female": ["Hadeer", "Hanan", "Mariam", "Rana", "Sarah", "Yasmin", "Yara"],
 }
 CACHE = "/content/voicetut_cache"
+# how it speaks (a gym coach: a bit quicker; num_step 32 = the quality of the VoiceTut demo)
+STYLE = {"speed": 1.1, "num_step": 32}
 RATE = 24000
 TASHKEEL = re.compile(r"[ً-ْٰ]")
 
@@ -59,7 +61,7 @@ def say_as(text):
         return one[bare]
     m = re.fullmatch(r"(\S+) و(\S+)", bare)
     if m and m.group(1) in UNITS and m.group(2) in TENS:
-        return f"{UNITS[m.group(1)]} وِ{TENS[m.group(2)]}"
+        return f"{UNITS[m.group(1)]} و{TENS[m.group(2)]}"
     if plain in LINES:
         return LINES[plain]
     # "يلا يا بطل" is not said (as with the recorded voices)
@@ -97,6 +99,13 @@ def mp3(path_wav):
     audio, rate = sf.read(path_wav, dtype="int16")
     if audio.ndim > 1:
         audio = audio[:, 0]
+    # cut the quiet / breathy start (a "hmm" before the line), keep 30 ms, fade in 15 ms
+    loud = np.abs(audio.astype(np.int32))
+    if loud.size and loud.max() > 0:
+        start = int(np.argmax(loud > loud.max() * 0.12))
+        audio = audio[max(0, start - rate * 3 // 100):].copy()
+        n = min(len(audio), rate * 15 // 1000)
+        audio[:n] = (audio[:n] * np.linspace(0, 1, n)).astype(np.int16)
     enc = lameenc.Encoder()
     enc.set_bit_rate(64)
     enc.set_in_sample_rate(rate)
@@ -106,10 +115,12 @@ def mp3(path_wav):
     return bytes(enc.encode(np.ascontiguousarray(audio).tobytes()) + enc.flush())
 
 
-def synthesize(text, speaker):
+def synthesize(text, speaker, style=None, raw=False, seed=None):
+    """MP3 of [text]; [raw] = say exactly this text (to try a spelling), [style] = speed etc."""
     os.makedirs(CACHE, exist_ok=True)
-    spoken = say_as(text)
-    name = hashlib.sha1(f"{speaker}|{spoken}".encode()).hexdigest()[:16]
+    spoken = text if raw else say_as(text)
+    opts = {**STYLE, **{k: v for k, v in (style or {}).items() if v is not None}}
+    name = hashlib.sha1(f"{speaker}|{spoken}|{sorted(opts.items())}|{seed}".encode()).hexdigest()[:16]
     cached = os.path.join(CACHE, name + ".mp3")
     if os.path.exists(cached):
         return open(cached, "rb").read()
@@ -119,7 +130,12 @@ def synthesize(text, speaker):
     # one line at a time on the GPU; inference mode in THIS thread too: the web server answers
     # in other threads than the one that loaded the model (it worked in Colab, failed over HTTP)
     with _lock, torch.inference_mode():
-        model().synthesize(spoken, speaker=speaker, output=wav)
+        if seed is not None:
+            torch.manual_seed(seed)
+        try:
+            model().synthesize(spoken, speaker=speaker, output=wav, **opts)
+        except TypeError:  # an option this VoiceTut version does not know
+            model().synthesize(spoken, speaker=speaker, output=wav)
     data = mp3(wav)
     open(cached, "wb").write(data)
     os.remove(wav)
@@ -136,6 +152,12 @@ def app():
     class Line(BaseModel):
         text: str
         speaker: str = "Yasmin"
+        # for trying things from a PC (the app sends only text + speaker)
+        raw: bool = False
+        speed: float | None = None
+        num_step: int | None = None
+        guidance_scale: float | None = None
+        seed: int | None = None
 
     @api.get("/")
     def info():
@@ -148,7 +170,9 @@ def app():
         if not line.text.strip():
             raise HTTPException(400, "empty text")
         try:
-            return Response(synthesize(line.text, line.speaker), media_type="audio/mpeg")
+            style = {"speed": line.speed, "num_step": line.num_step, "guidance_scale": line.guidance_scale}
+            return Response(synthesize(line.text, line.speaker, style, line.raw, line.seed),
+                            media_type="audio/mpeg")
         except Exception as e:  # the reason goes back to the caller (and the Colab output)
             import traceback
 
