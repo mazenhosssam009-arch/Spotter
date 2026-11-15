@@ -8,6 +8,9 @@ VoiceTut model, to judge it by ear. Run with the Python of tool/.venv:
 "clone" copies the voice of a Gemini female sample in tool/try/gemini (no training).
 --ref=4-5 picks which lines of the sample are copied (default 6-8):
     tool\\.venv\\Scripts\\python tool/try_local_voices.py clone Zephyr --ref=2-8
+    tool\\.venv\\Scripts\\python tool/try_local_voices.py clone Zephyr --ref=4-5 --model=lahgtna
+    ... --tashkeel   gives the model the lines with their tashkeel (VoiceTut's clean-up removes it)
+    ... --english    writes the exercise names in English letters (said in English)
     tool\\.venv\\Scripts\\python tool/try_local_voices.py page     (tool/try/local/compare.html)
 
 Writes tool/try/local/<model>_<voice>/01.wav ... and lines.txt (what each number says,
@@ -31,7 +34,28 @@ LINES = [
     "سكوات، يَلّا نِبْدَأ",
     "بنش بريس، يَلّا نِبْدَأ",
     "سومو ديدليفت، يَلّا نِبْدَأ",
+    "دي كانت سكوات مش ديدليفت، اتني من وسطك",  # English inside a sentence (an app line)
 ]
+
+# exercise names written in English letters so the voice says them in English (--english).
+# Longest first; the gym words Egyptians say in Arabic (البار, البنش, الفورم, ريبس) stay Arabic.
+ENGLISH = [
+    ("رومانيان ديدليفت", "Romanian deadlift"), ("ديدليفت روماني", "Romanian deadlift"),
+    ("سومو ديدليفت", "Sumo deadlift"), ("ديدليفت سومو", "Sumo deadlift"),
+    ("بايسبس كيرل", "Biceps curl"), ("بنش بريس", "Bench press"),
+    ("ديدليفت", "Deadlift"), ("سكوات", "Squat"),
+]
+
+
+def english(text):
+    """the exercise names in [text] (with or without tashkeel) -> English letters"""
+    import re
+
+    for a, b in ENGLISH:
+        pattern = "".join(re.escape(ch) if ch != " " else " " for ch in a)
+        pattern = "".join(c + "[ً-ْٰ]*" if c not in " \\" else c for c in pattern)
+        text = re.sub(pattern, b, text)
+    return text
 
 
 def write_list(folder, spoken, seconds):
@@ -113,29 +137,39 @@ def gemini_ref(voice, folder, lines=REF_LINES):
                           for i in picked)
 
 
-def clone(voices, lines=REF_LINES):
-    """VoiceTut speaking the test lines in the voice of a Gemini female sample (no training)"""
+# models built on OmniVoice that can copy a voice: --model=<name>
+MODELS = {
+    "voicetut": "mohammedaly22/VoiceTut-TTS",  # Egyptian
+    "lahgtna": "oddadmix/lahgtna-omnivoice-v2",  # many Arabic dialects (no licence on its model card)
+}
+
+
+def clone(voices, lines=REF_LINES, model="voicetut", tashkeel=False, in_english=False):
+    """[model] speaking the test lines in the voice of a Gemini female sample (no training).
+    VoiceTut's text clean-up removes almost all tashkeel; [tashkeel] skips it so the model
+    gets the line exactly as written (folder name ends in _tashkeel)"""
     import torch
 
     sys.path.insert(0, os.path.join(HERE, "voicetut"))
-    from server import STYLE, say_as
-    from voicetut_tts import VoiceTutTTS
+    from server import STYLE, say_as  # the spellings checked by ear for VoiceTut
+    from voicetut_tts import VoiceTutTTS  # loads any OmniVoice model (+ the Egyptian text clean-up)
 
     t = time.time()
-    tts = VoiceTutTTS.from_pretrained("mohammedaly22/VoiceTut-TTS", device="cpu", dtype="float32")
+    tts = VoiceTutTTS.from_pretrained(MODELS[model], device="cpu", dtype="float32")
     print(f"model loaded in {time.time() - t:.0f} s", flush=True)
     for voice in voices:
-        folder = os.path.join(OUT, f"voicetut_clone_{voice.lower()}"
-                              + ("" if lines == REF_LINES else f"_ref{lines}"))
+        folder = os.path.join(OUT, f"{model}_clone_{voice.lower()}"
+                              + ("" if lines == REF_LINES else f"_ref{lines}")
+                              + ("_tashkeel" if tashkeel else "") + ("_en" if in_english else ""))
         os.makedirs(folder, exist_ok=True)
         ref, ref_text = gemini_ref(voice, folder, lines)
         spoken, seconds = [], []
         for i, line in enumerate(LINES, 1):
-            text = say_as(line)
+            text = english(say_as(line)) if in_english else say_as(line)
             t = time.time()
             with torch.inference_mode():
                 torch.manual_seed(0)
-                tts.synthesize(text, ref_audio=ref, ref_text=ref_text,
+                tts.synthesize(text, ref_audio=ref, ref_text=ref_text, normalize=not tashkeel,
                                output=os.path.join(folder, f"{i:02d}.wav"), **STYLE)
             spoken.append(text)
             seconds.append(time.time() - t)
@@ -174,7 +208,11 @@ PAGE = [
                 ("VoiceTut's own female voice (Yasmin)", "voicetut_yasmin", ()),
                 ("VoiceTut copy, sample lines 6-8 (first try)", "voicetut_clone_zephyr", ()),
                 ("VoiceTut copy, sample lines 2-8", "voicetut_clone_zephyr_ref2-8", (2, 3, 4, 5)),
-                ("VoiceTut copy, sample lines 4-5", "voicetut_clone_zephyr_ref4-5", (4, 5))]),
+                ("VoiceTut copy, sample lines 4-5", "voicetut_clone_zephyr_ref4-5", (4, 5)),
+                ("VoiceTut copy 4-5, tashkeel kept", "voicetut_clone_zephyr_ref4-5_tashkeel", (4, 5)),
+                ("VoiceTut 4-5, tashkeel + English names", "voicetut_clone_zephyr_ref4-5_tashkeel_en", (4, 5)),
+                ("Lahgtna copy, sample lines 4-5", "lahgtna_clone_zephyr_ref4-5", (4, 5)),
+                ("Lahgtna copy 4-5, tashkeel kept", "lahgtna_clone_zephyr_ref4-5_tashkeel", (4, 5))]),
     ("Kore", [("Gemini (the real voice)", "gemini_kore", ()),
               ("VoiceTut copy, sample lines 4-5", "voicetut_clone_kore_ref4-5", (4, 5))]),
     ("Leda", [("Gemini (the real voice)", "gemini_leda", ()),
@@ -224,7 +262,7 @@ th{background:var(--head);font-weight:600;font-size:13px;text-align:left;max-wid
 td.line{min-width:220px}td.none{color:var(--muted);text-align:center}
 audio{width:190px;height:34px}.note{color:var(--muted);font-size:12px;max-width:190px}
 </style></head><body><h1>Voice comparison</h1>
-<p>Every column except "Gemini" is made by VoiceTut. "-" = that version has no clip for this line.</p>
+<p>Every column except "Gemini" is made on this PC by VoiceTut or Lahgtna. "-" = that version has no clip for this line.</p>
 {body}</body></html>"""
 
 
@@ -235,7 +273,9 @@ if __name__ == "__main__":
     elif which == "clone":
         args = sys.argv[2:]
         ref = next((a.split("=")[1] for a in args if a.startswith("--ref=")), REF_LINES)
-        clone([a for a in args if not a.startswith("--")] or ["Zephyr", "Kore", "Leda"], ref)
+        model = next((a.split("=")[1] for a in args if a.startswith("--model=")), "voicetut")
+        clone([a for a in args if not a.startswith("--")] or ["Zephyr", "Kore", "Leda"], ref, model,
+              "--tashkeel" in args, "--english" in args)
     elif which == "page":
         page()
     else:
