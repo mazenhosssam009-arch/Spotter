@@ -64,11 +64,28 @@ def load_pieces():
     return pieces
 
 
+# whole lines this voice says better another way (picked by ear, tool/try/local/numbers):
+# what say_as() gives -> what this voice is given, with the take (seed) that sounded best
+CLONE_SAY = {
+    "تِسْعَة": ("تِسْعَا", 1),  # nine on its own sounded like tis3i
+    "تَلَتّاشَر": ("تَلَاتَّاشَر", 1),  # thirteen
+}
+
+
 def spoken(text):
     """the app's line -> what VoiceTut is given"""
     from server import say_as
     from try_local_voices import english
-    return english(say_as(text))
+    said = english(say_as(text))
+    return CLONE_SAY.get(said, (said, 0))[0]
+
+
+def first_take(said):
+    """the take a line is made with first"""
+    for fixed, seed in CLONE_SAY.values():
+        if fixed == said:
+            return seed
+    return 0
 
 
 def load_model():
@@ -116,8 +133,12 @@ def main():
         wav = os.path.join(tempfile.gettempdir(), f"{FOLDER}_line.wav")
         start = time.time()
         for n, (k, t) in enumerate(todo, 1):
-            seeds.pop(k, None)  # a new text starts again from take 0
-            make(tts, t, ref, ref_text, 0, wav, os.path.join(out_dir, k + ".mp3"))
+            seed = first_take(t)  # a new text starts again from its first take
+            if seed:
+                seeds[k] = seed
+            else:
+                seeds.pop(k, None)
+            make(tts, t, ref, ref_text, seed, wav, os.path.join(out_dir, k + ".mp3"))
             state[k] = t
             if n % 10 == 0 or n == len(todo):
                 save_json(RECORDED, recorded)
