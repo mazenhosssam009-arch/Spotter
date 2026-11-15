@@ -4,6 +4,7 @@ import 'package:ai_trainer/features/voice_coach/domain/entities/voice_settings.d
 /// Gemini voices: tool/make_egyptian_voice_gemini.py. NAMAA voices (open-source
 /// NAMAA-Egyptian-TTS, MIT license, made on a PC): tool/make_egyptian_voice_namaa.py.
 /// ElevenLabs voices (Ziad, Yasmine): tool/make_egyptian_voice_elevenlabs_voices.py.
+/// VoiceTut Clone (open-source VoiceTut copying Gemini's Zephyr): tool/make_egyptian_voice_voicetut_clone.py.
 class EgyptianVoice {
   const EgyptianVoice(this.id, this.name, this.gender, {this.isDefault = false});
 
@@ -30,6 +31,8 @@ class EgyptianVoice {
     EgyptianVoice('namaa_female', 'NAMAA', VoiceGender.female),
     EgyptianVoice('kore', 'Kore', VoiceGender.female),
     EgyptianVoice('leda', 'Leda', VoiceGender.female),
+    // trial: VoiceTut (open source) copying Gemini's Zephyr; tool/make_egyptian_voice_voicetut_clone.py
+    EgyptianVoice('voicetut_clone', 'VoiceTut Clone', VoiceGender.female),
   ];
 
   static EgyptianVoice defaultFor(VoiceGender g) => all.firstWhere((v) => v.gender == g && v.isDefault);
