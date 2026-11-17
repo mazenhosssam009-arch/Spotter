@@ -5,7 +5,7 @@ import 'package:ai_trainer/core/theme/spotter_theme.dart';
 import 'package:ai_trainer/core/utils/cv_math.dart';
 import 'package:ai_trainer/core/widgets/spot_widgets.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/coaching_feedback.dart';
-import 'package:ai_trainer/features/pose_coaching/domain/services/rep_counter.dart';
+import 'package:ai_trainer/features/pose_coaching/domain/entities/rep_counter.dart';
 import 'package:ai_trainer/features/pose_coaching/presentation/bloc/trainer_bloc/trainer_bloc.dart';
 import 'package:ai_trainer/features/pose_coaching/presentation/widgets/form_colors.dart';
 

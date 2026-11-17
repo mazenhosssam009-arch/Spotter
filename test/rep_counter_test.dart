@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ai_trainer/features/pose_coaching/data/datasources/exercise_local_data_source.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/body_landmark.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/pose_frame.dart';
-import 'package:ai_trainer/features/pose_coaching/domain/services/rep_counter.dart';
+import 'package:ai_trainer/features/pose_coaching/domain/entities/rep_counter.dart';
 
 /// a person filmed from the side with the right elbow bent to [elbowDeg]
 PoseFrame sideCurl(double elbowDeg) {

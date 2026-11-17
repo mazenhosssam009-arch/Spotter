@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:ai_trainer/core/utils/cv_math.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/exercise.dart';
-import 'package:ai_trainer/features/pose_coaching/domain/services/rep_counter.dart';
+import 'package:ai_trainer/features/pose_coaching/domain/entities/rep_counter.dart';
 import 'package:ai_trainer/features/pose_coaching/presentation/bloc/trainer_bloc/trainer_bloc.dart';
 import 'package:ai_trainer/features/voice_coach/data/datasources/clip_text.dart';
 import 'package:ai_trainer/features/voice_coach/data/datasources/phrase_bank.dart';

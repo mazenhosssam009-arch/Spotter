@@ -10,7 +10,7 @@ import 'package:ai_trainer/core/constants.dart';
 import 'package:ai_trainer/core/utils/cv_math.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/exercise.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/pose_frame.dart';
-import 'package:ai_trainer/features/pose_coaching/domain/services/rep_counter.dart';
+import 'package:ai_trainer/features/pose_coaching/domain/entities/rep_counter.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/usecases/process_pose_frame_usecase.dart';
 
 part 'trainer_event.dart';
