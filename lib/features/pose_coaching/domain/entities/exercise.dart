@@ -58,4 +58,15 @@ class Exercise {
 
   /// AiTrainer.py is the first version: one arm
   bool get oneSide => left == null;
+
+  bool get isCurl => name.contains('Curl');
+  bool get isSquat => name.contains('Squat');
+  bool get isDeadlift => name.contains('Deadlift');
+  bool get isBench => name.contains('Bench');
+
+  /// threshold [key] from [limits], or [fallback] when this exercise does not override it
+  double limit(String key, double fallback) => limits[key] ?? fallback;
+
+  /// angular speed (deg/s) above which the movement is too fast to be controlled
+  double get maxSpeed => limit('maxSpeed', isCurl ? 400 : 300);
 }

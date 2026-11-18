@@ -11,7 +11,7 @@ import 'package:ai_trainer/core/widgets/camera_view.dart';
 import 'package:ai_trainer/core/widgets/overlay_canvas.dart';
 import 'package:ai_trainer/core/widgets/spot_widgets.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/exercise.dart';
-import 'package:ai_trainer/features/pose_coaching/domain/services/rep_counter.dart';
+import 'package:ai_trainer/features/pose_coaching/domain/entities/rep_counter.dart';
 import 'package:ai_trainer/features/pose_coaching/presentation/bloc/trainer_bloc/trainer_bloc.dart';
 import 'package:ai_trainer/features/pose_coaching/presentation/widgets/depth_bar.dart';
 import 'package:ai_trainer/features/pose_coaching/presentation/widgets/exercise_guide.dart';

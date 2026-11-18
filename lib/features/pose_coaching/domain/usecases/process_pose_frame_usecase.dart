@@ -6,7 +6,7 @@ import 'package:ai_trainer/core/utils/cv_math.dart';
 import 'package:ai_trainer/core/camera/camera_frame.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/pose_frame.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/repositories/i_pose_estimator.dart';
-import 'package:ai_trainer/features/pose_coaching/domain/services/rep_counter.dart';
+import 'package:ai_trainer/features/pose_coaching/domain/entities/rep_counter.dart';
 
 class ProcessPoseParams extends Equatable {
   final CameraFrame frame;
