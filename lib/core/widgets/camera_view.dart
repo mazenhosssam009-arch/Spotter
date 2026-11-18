@@ -1,11 +1,11 @@
 import 'dart:io';
-
-import 'package:camera/camera.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'dart:math' as math;
 
 import 'package:ai_trainer/core/camera/camera_frame.dart';
 import 'package:ai_trainer/core/theme/spotter_theme.dart';
+import 'package:camera/camera.dart';
+import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// the "while True: cap.read() ... cv2.imshow()" loop.
 /// Opens the camera (cv2.VideoCapture(0)), gives every frame to [onFrame]
@@ -42,9 +42,10 @@ class _CameraViewState extends State<CameraView> {
   late CameraDescription _camera;
   bool _ready = false;
   String? _error;
-  // true = the picture fills the whole area (edges are cropped), false = the whole
-  // picture is shown with black bars. The button in the top bar switches.
-  bool _fill = true;
+  // false = the whole picture is shown with black bars (widest view, nothing cropped),
+  // true = the picture fills the whole area (edges are cropped). The button in the top bar
+  // switches. Starts on false so the camera sees as much of you as possible.
+  bool _fill = false;
 
   @override
   void initState() {
@@ -65,16 +66,24 @@ class _CameraViewState extends State<CameraView> {
         orElse: () => cameras.first,
       );
       // MEDIUM (about 640x480) is what makes the app fast: the pose model looks at a small
-      // picture anyway, so a 720p stream only costs conversion time. The picture is shown
-      // full-screen (see _fill), so it still looks big.
+      // picture anyway, so a 720p stream only costs conversion time.
       final controller = CameraController(
         _camera,
         ResolutionPreset.medium,
         enableAudio: false,
-        imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.nv21 : ImageFormatGroup.bgra8888,
+        imageFormatGroup: Platform.isAndroid
+            ? ImageFormatGroup.nv21
+            : ImageFormatGroup.bgra8888,
       );
       _controller = controller;
       await controller.initialize();
+      if (!mounted) return;
+      // widest view the camera offers (on phones whose camera can zoom out below 1x this
+      // gives a wider field of view; on the rest it is 1x and changes nothing)
+      try {
+        final minZoom = await controller.getMinZoomLevel();
+        await controller.setZoomLevel(minZoom);
+      } catch (_) {}
       if (!mounted) return;
       await controller.startImageStream(_process);
       setState(() => _ready = true);
@@ -133,6 +142,26 @@ class _CameraViewState extends State<CameraView> {
     super.dispose();
   }
 
+  /// small dark button with a mint border, same look as the buttons on the right of the bar
+  Widget _barButton(IconData icon, String tip, VoidCallback onTap) => Tooltip(
+    message: tip,
+    child: Material(
+      color: Sp.card,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(Sp.rChip),
+        side: const BorderSide(color: Sp.mint),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(Sp.rChip),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Icon(icon, size: 18, color: Sp.mint),
+        ),
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final controller = _controller;
@@ -141,60 +170,104 @@ class _CameraViewState extends State<CameraView> {
       body = Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(_error!, style: const TextStyle(color: Colors.white), textAlign: TextAlign.center),
+          child: Text(
+            _error!,
+            style: const TextStyle(color: Colors.white),
+            textAlign: TextAlign.center,
+          ),
         ),
       );
     } else if (!_ready || controller == null) {
       body = const Center(child: CircularProgressIndicator());
     } else {
-      // standard camera-plugin way to fill the screen: scale the preview up until it covers
-      // the whole area (the edges that do not fit are cropped). Fit mode = the plain preview.
-      body = LayoutBuilder(builder: (context, c) {
-        // the skeleton layer repaints on its own: the camera preview is not rebuilt per frame
-        final preview = CameraPreview(controller, child: RepaintBoundary(child: widget.overlay));
-        if (!_fill) return Center(child: preview);
-        var scale = c.biggest.aspectRatio * controller.value.aspectRatio;
-        if (scale < 1) scale = 1 / scale;
-        return ClipRect(
-          child: Transform.scale(scale: scale, child: Center(child: preview)),
-        );
-      });
+      // fit mode = the plain preview (whole picture, nothing cropped).
+      // fill mode = scale the preview up until it covers the whole area (edges are cropped).
+      body = LayoutBuilder(
+        builder: (context, c) {
+          // the skeleton layer repaints on its own: the camera preview is not rebuilt per frame
+          final preview = CameraPreview(
+            controller,
+            child: RepaintBoundary(child: widget.overlay),
+          );
+          if (!_fill) return Center(child: preview);
+          final o = controller.value.deviceOrientation;
+          final landscape =
+              o == DeviceOrientation.landscapeLeft ||
+              o == DeviceOrientation.landscapeRight;
+          final previewAspect = landscape
+              ? controller.value.aspectRatio
+              : 1 / controller.value.aspectRatio;
+          final areaAspect = c.biggest.aspectRatio;
+          final scale = math.max(
+            areaAspect / previewAspect,
+            previewAspect / areaAspect,
+          );
+          return ClipRect(
+            child: Transform.scale(
+              scale: scale,
+              child: Center(child: preview),
+            ),
+          );
+        },
+      );
     }
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: Text(widget.title),
+        // the look is set here, so it does not depend on which theme is active
+        backgroundColor: Sp.canvas,
+        foregroundColor: Sp.white,
+        surfaceTintColor: Colors.transparent,
+        toolbarHeight: 64,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        titleSpacing: 4,
+        automaticallyImplyLeading: false,
+        // back button: maybePop goes through the screen's PopScope, so the workout screen
+        // still asks "Leave the workout?" before closing
+        leadingWidth: 64,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 8),
+          child: Center(
+            child: _barButton(
+              Icons.arrow_back,
+              'Back',
+              () => Navigator.of(context).pop(),
+            ),
+          ),
+        ),
+        title: Text(
+          widget.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Sp.headlineSm.copyWith(color: Sp.white),
+        ),
         actions: [
           // too many buttons (e.g. curls: + the arm picker) covered the back button on a phone:
           // keep room for it; if they still do not fit they scroll, with the first one (the
           // voice coach) always in view
           ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 72),
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.sizeOf(context).width - 72,
+            ),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-          ...?widget.actions,
-          Padding(
-            padding: const EdgeInsets.only(left: 4, right: 8),
-            child: Tooltip(
-              // the icon shows what a tap will do (an icon only: the bar has to fit on a phone)
-              message: _fill ? 'Fit the camera' : 'Fill the screen',
-              child: Material(
-                color: Sp.card,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(Sp.rChip), side: const BorderSide(color: Sp.mint)),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(Sp.rChip),
-                  onTap: () => setState(() => _fill = !_fill),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    child: Icon(_fill ? Icons.fit_screen : Icons.fullscreen, size: 18, color: Sp.mint),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ...?widget.actions,
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, right: 8),
+                    // the icon shows what a tap will do (an icon only: the bar has to fit on a phone)
+                    child: _barButton(
+                      _fill ? Icons.fit_screen : Icons.fullscreen,
+                      _fill ? 'Fit the camera' : 'Fill the screen',
+                      () => setState(() => _fill = !_fill),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ),
-          ),
-              ]),
             ),
           ),
         ],
