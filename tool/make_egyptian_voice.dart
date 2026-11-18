@@ -21,7 +21,8 @@ import 'package:ai_trainer/features/voice_coach/data/datasources/phrase_bank.dar
 import 'package:ai_trainer/features/voice_coach/domain/entities/coach_cue.dart';
 import 'package:ai_trainer/features/voice_coach/domain/entities/voice_settings.dart';
 
-/// every Arabic piece the coach can say (all personalities, both Arabic styles)
+/// every Arabic piece the coach can say (all personalities, both Arabic styles, a male or
+/// female coach voice talking to a man or a woman)
 Set<String> allPieces() {
   final texts = <String>[];
   const exercises = ['Biceps Curl', 'Squat', 'Deadlift', 'Bench Press', 'Sumo Deadlift', 'Romanian Deadlift'];
@@ -35,51 +36,59 @@ Set<String> allPieces() {
   ];
   for (final style in ArabicStyle.values) {
     for (final p in CoachPersonality.values) {
-      final b = PhraseBank(VoiceSettings(
-        language: CoachLanguage.arabicEgyptian,
-        arabicStyle: style,
-        personality: p,
-      ));
-      for (var n = 0; n <= 100; n++) {
-        texts
-          ..add(b.number(n))
-          ..add(b.repCount(n))
-          ..add(b.formScore(n))
-          ..add(b.countReport(n))
-          ..add(b.setStarting(n))
-          ..add(b.personalBestReps(n))
-          ..add(b.personalBestForm(n));
-      }
-      for (final c in CoachCue.values) {
-        texts
-          ..add(b.cue(c))
-          ..add(b.warning(c))
-          ..add(b.warning(c, repeat: true))
-          ..add(b.restTip(c))
-          ..add(b.setSummary(reps: 5, clean: 3, form: 80, topFault: c));
-      }
-      for (final r in RepResult.values) {
-        for (final fault in <CoachCue?>[null, ...CoachCue.values]) {
-          for (final d in details) {
-            final t = b.repResult(r, fault: fault, detail: d);
-            if (t != null) texts.add(t);
+      for (final coach in VoiceGender.values) {
+        for (final trainee in VoiceGender.values) {
+          final b = PhraseBank(
+            VoiceSettings(
+              language: CoachLanguage.arabicEgyptian,
+              arabicStyle: style,
+              personality: p,
+              gender: coach,
+              trainee: trainee,
+            ),
+          );
+          for (var n = 0; n <= 100; n++) {
+            texts
+              ..add(b.number(n))
+              ..add(b.repCount(n))
+              ..add(b.formScore(n))
+              ..add(b.countReport(n))
+              ..add(b.setStarting(n))
+              ..add(b.personalBestReps(n))
+              ..add(b.personalBestForm(n));
+          }
+          for (final c in CoachCue.values) {
+            texts
+              ..add(b.cue(c))
+              ..add(b.warning(c))
+              ..add(b.warning(c, repeat: true))
+              ..add(b.restTip(c))
+              ..add(b.setSummary(reps: 5, clean: 3, form: 80, topFault: c));
+          }
+          for (final r in RepResult.values) {
+            for (final fault in <CoachCue?>[null, ...CoachCue.values]) {
+              for (final d in details) {
+                final t = b.repResult(r, fault: fault, detail: d);
+                if (t != null) texts.add(t);
+              }
+            }
+          }
+          for (var i = 0; i < 3; i++) {
+            texts.add(b.praise(i));
+          }
+          texts.addAll([
+            b.controlled, b.twoMore, b.lastOne, b.goalReached, b.fatigue, b.go, //
+            b.restStarted, b.muted, b.unmuted, b.listening, b.sample,
+            b.restLeft(30), b.restLeft(10),
+            b.restOver(2, commands: true), b.restOver(2, commands: false),
+            b.setSummary(reps: 5, clean: 5),
+          ]);
+          for (final e in exercises) {
+            texts
+              ..add(b.start(e))
+              ..add(b.cameraSetup(e));
           }
         }
-      }
-      for (var i = 0; i < 3; i++) {
-        texts.add(b.praise(i));
-      }
-      texts.addAll([
-        b.controlled, b.twoMore, b.lastOne, b.goalReached, b.fatigue, b.go, //
-        b.restStarted, b.muted, b.unmuted, b.listening, b.sample,
-        b.restLeft(30), b.restLeft(10),
-        b.restOver(2, commands: true), b.restOver(2, commands: false),
-        b.setSummary(reps: 5, clean: 5),
-      ]);
-      for (final e in exercises) {
-        texts
-          ..add(b.start(e))
-          ..add(b.cameraSetup(e));
       }
     }
   }
@@ -107,8 +116,10 @@ Future<List<int>?> _synth(HttpClient http, String region, String key, String voi
       final body = await res.fold<List<int>>(<int>[], (a, b) => a..addAll(b));
       if (res.statusCode == 200) return body;
       if (res.statusCode == 401 || res.statusCode == 403) {
-        stderr.writeln('\nAzure says the key or region is wrong (${res.statusCode}). '
-            'Copy KEY 1 and the Location/Region from your Speech resource again.');
+        stderr.writeln(
+          '\nAzure says the key or region is wrong (${res.statusCode}). '
+          'Copy KEY 1 and the Location/Region from your Speech resource again.',
+        );
         exit(1);
       }
       // 429 = too many requests (the free tier allows about 20 a minute): wait and retry
@@ -143,11 +154,21 @@ void _writeSample() {
   final lines = <String>[
     for (var n = 1; n <= 20; n++) b.number(n),
     for (final c in const [
-      CoachCue.spineNeutral, CoachCue.kneesCaving, CoachCue.elbowDrift, CoachCue.swinging,
-      CoachCue.stanceNarrow, CoachCue.lowerSlowly, CoachCue.getInPosition, CoachCue.noPerson,
+      CoachCue.spineNeutral,
+      CoachCue.kneesCaving,
+      CoachCue.elbowDrift,
+      CoachCue.swinging,
+      CoachCue.stanceNarrow,
+      CoachCue.lowerSlowly,
+      CoachCue.getInPosition,
+      CoachCue.noPerson,
     ])
       b.cue(c),
-    b.praise(0), b.praise(1), b.twoMore, b.lastOne, b.restStarted,
+    b.praise(0),
+    b.praise(1),
+    b.twoMore,
+    b.lastOne,
+    b.restStarted,
     ...ClipText.pieces(b.restOver(2, commands: false)),
   ];
   File('tool/sample.txt').writeAsStringSync(lines.join('\n'));

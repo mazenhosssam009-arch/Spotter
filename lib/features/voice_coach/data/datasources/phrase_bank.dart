@@ -21,6 +21,27 @@ class PhraseBank {
   static const _s1 = ClipText.sentence;
   CoachPersonality get _p => s.personality;
 
+  // Egyptian Arabic changes with two genders: who LISTENS (the trainee: ضم كوعك / ضمّي كوعِك)
+  // and who SPEAKS (the coach voice: عايِز أشوفك / عايْزَة أشوفك, شايْفَك / شايْفاك)
+  bool get _youF => s.trainee == VoiceGender.female;
+  bool get _meF => s.gender == VoiceGender.female;
+
+  /// the word for the trainee: [m] to a man, [f] to a woman
+  String _y(String m, String f) => _youF ? f : m;
+
+  /// the coach's words about itself, for a female coach voice (the texts are written for a male one)
+  String _coach(String t) {
+    if (!_meF) return t;
+    return t
+        .replaceAll('عايِز', 'عايْزَة')
+        .replaceAll('مِش قادِر', 'مِش قادْرَة')
+        .replaceAll('مِش شايِف ', 'مِش شايْفَة ')
+        .replaceAll('شايْفِك', 'شايْفاكي')
+        .replaceAll('شايْفَك', 'شايْفاك')
+        .replaceAll('سامْعِك', 'سامْعاكي')
+        .replaceAll('سامْعَك', 'سامْعاك');
+  }
+
   // ------------------------------------------------------------------ words
 
   // Arabic wording follows the Egyptian voice-coach guide: short Egyptian commands,
@@ -46,10 +67,39 @@ class PhraseBank {
   // ------------------------------------------------------------------ numbers
 
   static const _arUnits = [
-    'صِفْر', 'واحِد', 'اِتْنَيْن', 'تَلاتَة', 'أَرْبَعَة', 'خَمْسَة', 'سِتَّة', 'سَبْعَة', 'تَمانْيَة', 'تِسْعَة', 'عَشَرَة', //
-    'حْداشَر', 'اِتْناشَر', 'تَلاتْطاشَر', 'أَرْبَعْطاشَر', 'خَمْسْطاشَر', 'سِتّاشَر', 'سَبْعْطاشَر', 'تَمانْطاشَر', 'تِسْعَطاشَر',
+    'صِفْر',
+    'واحِد',
+    'اِتْنَيْن',
+    'تَلاتَة',
+    'أَرْبَعَة',
+    'خَمْسَة',
+    'سِتَّة',
+    'سَبْعَة',
+    'تَمانْيَة',
+    'تِسْعَة',
+    'عَشَرَة', //
+    'حْداشَر',
+    'اِتْناشَر',
+    'تَلاتْطاشَر',
+    'أَرْبَعْطاشَر',
+    'خَمْسْطاشَر',
+    'سِتّاشَر',
+    'سَبْعْطاشَر',
+    'تَمانْطاشَر',
+    'تِسْعَطاشَر',
   ];
-  static const _arTens = ['', '', 'عِشْرين', 'تَلاتين', 'أَرْبَعين', 'خَمْسين', 'سِتّين', 'سَبْعين', 'تَمانين', 'تِسْعين'];
+  static const _arTens = [
+    '',
+    '',
+    'عِشْرين',
+    'تَلاتين',
+    'أَرْبَعين',
+    'خَمْسين',
+    'سِتّين',
+    'سَبْعين',
+    'تَمانين',
+    'تِسْعين',
+  ];
 
   /// a number the way it is said out loud (Egyptian words up to 99)
   String number(int n) {
@@ -63,44 +113,120 @@ class PhraseBank {
 
   // ------------------------------------------------------------------ cues
 
-  static const _cues = <CoachCue, (String, String)>{
-    CoachCue.spineNeutral: ('Keep your back straight', 'خَلّي ضَهْرَك مُسْتَقيم'),
-    CoachCue.kneesCaving: ('Push your knees out', 'مَتِخَلّيش رُكْبِتَك تِدْخُل لِجُوَّه'),
-    CoachCue.chestUp: ('Chest up', 'اِرْفَع صِدْرَك'),
-    CoachCue.lowerSlowly: ('Lower slowly, control the bar', 'نَزِّل البار بِهُدوء'),
-    CoachCue.glutesOnBench: ('Keep your hips on the bench', 'خَلّي وِسْطَك على البَنْش'),
-    CoachCue.slowDown: ('Slow down, control it', 'بِهُدوء، مَتِسْتَعْجِلْش في الحَرَكَة'),
-    CoachCue.wristBent: ('Straighten your wrists', 'اِفْرِد رُسْغَك'),
-    CoachCue.stackWrist: ('Wrists over elbows', 'خَلّي رُسْغَك فوق كوعَك'),
-    CoachCue.elbowsFlared: ('Tuck your elbows in a bit', 'ضُمّ كوعَك لِجُوَّه شُوَيَّة'),
-    CoachCue.tooMuchKneeBend: ('Less knee bend, push your hips back', 'مَتِتْنيش رُكْبِتَك أَوي، رَجَّع وِسْطَك لِوَرا'),
-    CoachCue.swinging: ('Stop swinging, stay still', 'مَتِتْمَرْجَحْش بِجِسْمَك'),
-    CoachCue.elbowDrift: ('Pin your elbows to your sides', 'ثَبِّت كوعَك'),
-    CoachCue.barUneven: ('The bar is uneven, push both sides equally', 'البار مايِل، اِدْفَع بِإيدَيْك الاِتْنَيْن زَيّ بَعْض'),
-    CoachCue.unevenSides: ('Work both sides evenly', 'شَغَّل النّاحْيِتَيْن زَيّ بَعْض'),
-    CoachCue.barPath: ('Keep the bar in a straight line', 'خَلّي البار ماشي في خَطّ مُسْتَقيم'),
-    CoachCue.torsoTwist: ("Don't twist, chest facing forward", 'مَتِلِفِّش جِسْمَك، صِدْرَك لِقُدّام'),
-    CoachCue.leaning: ("Don't lean, keep your body still", 'مَتِميلْش بِجِسْمَك، خَلّيك ثابِت'),
-    CoachCue.shrugging: ('Relax your shoulders down', 'مَتِحَرَّكْش بِكِتافَك'),
-    CoachCue.kneesTooStraight: ('Soften your knees a little', 'اِتْني رُكْبِتَك سِنَّة صُغَيَّرَة'),
-    CoachCue.elbowsTucked: ('Let your elbows open a little', 'اِفْتَح كوعَك شُوَيَّة'),
-    CoachCue.stanceNarrow: ('Widen your stance', 'وَسَّع رِجْلَيْك شُوَيَّة'),
-    CoachCue.stanceWide: ('Bring your feet in a bit', 'قَرَّب رِجْلَيْك مِن بَعْض شُوَيَّة'),
-    CoachCue.showFullBody: ('Step back, I need to see you from head to feet', 'اِرْجَع لِوَرا شُوَيَّة، عايِز أَشوفَك مِن راسَك لِرِجْلَك'),
-    CoachCue.showArm: ('Keep your arm in view of the camera', 'خَلّي دِراعَك باين في الكاميرا'),
-    CoachCue.lieOnBench: ('Lie down on the bench to start', 'نام على البَنْش عَشان نِبْدَأ'),
-    CoachCue.upperArmDown: ('Keep your upper arm down by your side', 'نَزِّل دِراعَك جَنْبَك'),
-    CoachCue.getInPosition: ('Get in position', 'ظَبَّط وَقْفِتَك'),
-    CoachCue.noPerson: ("I can't see you. Step in front of the camera", 'مِش قادِر أَشوف الحَرَكَة بِوُضوح، ظَبَّط مَكانَك قُدّام الكاميرا'),
-    CoachCue.checkLight: ("Still can't see you. Move into better light", 'لِسَّه مِش شايْفَك، اُقَف في مَكان مِنَوَّر أَكْتَر'),
-    CoachCue.turnSideways: ('Turn sideways so I can check your back', 'لِفّ جَنْبَك لِلْكاميرا عَشان أَشوف ضَهْرَك'),
-    CoachCue.headBackHidden: ("I can't see your head and back", 'مِش شايِف راسَك وضَهْرَك'),
-    CoachCue.flareView: ('Film from your head or feet to check your elbows', 'صَوَّر مِن ناحْيِة راسَك أَو رِجْلَك عَشان أَشوف كوعَك'),
+  static const _cues = <CoachCue, (String, String, String)>{
+    CoachCue.spineNeutral: ('Keep your back straight', 'خَلّي ضَهْرَك مُسْتَقيم', 'خَلّي ضَهْرِك مُسْتَقيم'),
+    CoachCue.kneesCaving: (
+      'Push your knees out',
+      'مَتِخَلّيش رُكْبِتَك تِدْخُل لِجُوَّه',
+      'مَتِخَلّيش رُكْبِتِك تِدْخُل لِجُوَّه',
+    ),
+    CoachCue.chestUp: ('Chest up', 'اِرْفَع صِدْرَك', 'اِرْفَعي صِدْرِك'),
+    CoachCue.lowerSlowly: ('Lower slowly, control the bar', 'نَزِّل البار بِهُدوء', 'نَزِّلي البار بِهُدوء'),
+    CoachCue.glutesOnBench: ('Keep your hips on the bench', 'خَلّي وِسْطَك على البَنْش', 'خَلّي وِسْطِك على البَنْش'),
+    CoachCue.slowDown: (
+      'Slow down, control it',
+      'بِهُدوء، مَتِسْتَعْجِلْش في الحَرَكَة',
+      'بِهُدوء، مَتِسْتَعْجِليش في الحَرَكَة',
+    ),
+    CoachCue.wristBent: ('Straighten your wrists', 'خَلّي إيدَك مَفْرودَة', 'خَلّي إيدِك مَفْرودَة'),
+    CoachCue.stackWrist: ('Wrists over elbows', 'خَلّي إيدَك فوق كوعَك', 'خَلّي إيدِك فوق كوعِك'),
+    CoachCue.elbowsFlared: (
+      'Tuck your elbows in a bit',
+      'ضُمّ كوعَك لِجُوَّه شُوَيَّة',
+      'ضُمّي كوعِك لِجُوَّه شُوَيَّة',
+    ),
+    CoachCue.tooMuchKneeBend: (
+      'Less knee bend, push your hips back',
+      'مَتِتْنيش رُكْبِتَك أَوي، رَجَّع وِسْطَك لِوَرا',
+      'مَتِتْنيش رُكْبِتِك أَوي، رَجَّعي وِسْطِك لِوَرا',
+    ),
+    CoachCue.swinging: ('Stop swinging, stay still', 'مَتِتْمَرْجَحْش بِجِسْمَك', 'مَتِتْمَرْجَحيش بِجِسْمِك'),
+    CoachCue.elbowDrift: ('Pin your elbows to your sides', 'ثَبِّت كوعَك', 'ثَبِّتي كوعِك'),
+    CoachCue.barUneven: (
+      'The bar is uneven, push both sides equally',
+      'البار مايِل، اِدْفَع بِإيدَيْك الاِتْنَيْن زَيّ بَعْض',
+      'البار مايِل، اِدْفَعي بِإيدَيْكي الاِتْنَيْن زَيّ بَعْض',
+    ),
+    CoachCue.unevenSides: (
+      'Work both sides evenly',
+      'شَغَّل النّاحْيِتَيْن زَيّ بَعْض',
+      'شَغَّلي النّاحْيِتَيْن زَيّ بَعْض',
+    ),
+    CoachCue.barPath: (
+      'Keep the bar in a straight line',
+      'خَلّي البار ماشي في خَطّ مُسْتَقيم',
+      'خَلّي البار ماشي في خَطّ مُسْتَقيم',
+    ),
+    CoachCue.torsoTwist: (
+      "Don't twist, chest facing forward",
+      'مَتِلِفِّش جِسْمَك، صِدْرَك لِقُدّام',
+      'مَتِلِفّيش جِسْمِك، صِدْرِك لِقُدّام',
+    ),
+    CoachCue.leaning: (
+      "Don't lean, keep your body still",
+      'مَتِميلْش بِجِسْمَك، خَلّيك ثابِت',
+      'مَتِميليش بِجِسْمِك، خَلّيكي ثابْتَة',
+    ),
+    CoachCue.shrugging: ('Relax your shoulders down', 'مَتِحَرَّكْش بِكِتافَك', 'مَتِحَرَّكيش كِتافِك'),
+    CoachCue.kneesTooStraight: (
+      'Soften your knees a little',
+      'اِتْني رُكْبِتَك سِنَّة صُغَيَّرَة',
+      'اِتْني رُكْبِتِك سِنَّة صُغَيَّرَة',
+    ),
+    CoachCue.elbowsTucked: ('Let your elbows open a little', 'اِفْتَح كوعَك شُوَيَّة', 'اِفْتَحي كوعِك شُوَيَّة'),
+    CoachCue.stanceNarrow: ('Widen your stance', 'وَسَّع رِجْلَيْك شُوَيَّة', 'وَسَّعي رِجْلَيْكي شُوَيَّة'),
+    CoachCue.stanceWide: (
+      'Bring your feet in a bit',
+      'قَرَّب رِجْلَيْك مِن بَعْض شُوَيَّة',
+      'قَرَّبي رِجْلَيْكي مِن بَعْض شُوَيَّة',
+    ),
+    CoachCue.showFullBody: (
+      'Step back, I need to see you from head to feet',
+      'اِرْجَع لِوَرا شُوَيَّة، عايِز أَشوفَك مِن راسَك لِرِجْلَك',
+      'اِرْجَعي لِوَرا شُوَيَّة، عايِز أَشوفِك مِن راسِك لِرِجْلِك',
+    ),
+    CoachCue.showArm: (
+      'Keep your arm in view of the camera',
+      'خَلّي دِراعَك باين في الكاميرا',
+      'خَلّي دِراعِك باين في الكاميرا',
+    ),
+    CoachCue.lieOnBench: (
+      'Lie down on the bench to start',
+      'نام على البَنْش عَشان نِبْدَأ',
+      'نامي على البَنْش عَشان نِبْدَأ',
+    ),
+    CoachCue.upperArmDown: (
+      'Keep your upper arm down by your side',
+      'نَزِّل دِراعَك جَنْبَك',
+      'نَزِّلي دِراعِك جَنْبِك',
+    ),
+    CoachCue.getInPosition: ('Get in position', 'ظَبَّط وَقْفِتَك', 'ظَبَّطي وَقْفِتِك'),
+    CoachCue.noPerson: (
+      "I can't see you. Step in front of the camera",
+      'مِش قادِر أَشوف الحَرَكَة بِوُضوح، ظَبَّط مَكانَك قُدّام الكاميرا',
+      'مِش قادِر أَشوف الحَرَكَة بِوُضوح، ظَبَّطي مَكانِك قُدّام الكاميرا',
+    ),
+    CoachCue.checkLight: (
+      "Still can't see you. Move into better light",
+      'لِسَّه مِش شايْفَك، اُقَف في مَكان مِنَوَّر أَكْتَر',
+      'لِسَّه مِش شايْفِك، اُقَفي في مَكان مِنَوَّر أَكْتَر',
+    ),
+    CoachCue.turnSideways: (
+      'Turn sideways so I can check your back',
+      'لِفّ جَنْبَك لِلْكاميرا عَشان أَشوف ضَهْرَك',
+      'لِفّي جَنْبِك لِلْكاميرا عَشان أَشوف ضَهْرِك',
+    ),
+    CoachCue.headBackHidden: ("I can't see your head and back", 'مِش شايِف راسَك وضَهْرَك', 'مِش شايِف راسِك وضَهْرِك'),
+    CoachCue.flareView: (
+      'Film from your head or feet to check your elbows',
+      'صَوَّر مِن ناحْيِة راسَك أَو رِجْلَك عَشان أَشوف كوعَك',
+      'صَوَّري مِن ناحْيِة راسِك أَو رِجْلِك عَشان أَشوف كوعِك',
+    ),
   };
 
   String cue(CoachCue c) {
     final p = _cues[c]!;
-    return _ar ? p.$2 : p.$1;
+    return _ar ? _coach(_youF ? p.$3 : p.$2) : p.$1;
   }
 
   String _lc(String t) => t.isEmpty ? t : t[0].toLowerCase() + t.substring(1);
@@ -113,14 +239,14 @@ class PhraseBank {
       if (repeat) {
         return switch (_p) {
           CoachPersonality.calm => 'اِفْتِكِر، $t',
-          CoachPersonality.hype => 'يَلّا يا بَطَل، $t!',
+          CoachPersonality.hype => 'يَلّا يا ${_y('بَطَل', 'بَطَلَة')}، $t!',
           CoachPersonality.strict => 'قُلْتِلَك، $t!',
           CoachPersonality.minimal => t,
         };
       }
       return switch (_p) {
         CoachPersonality.calm => t,
-        CoachPersonality.hype => '$t، يَلّا يا بَطَل!',
+        CoachPersonality.hype => '$t، يَلّا يا ${_y('بَطَل', 'بَطَلَة')}!',
         // strict: the plain cue the first time ("قلتلك، ..." when it is repeated)
         CoachPersonality.strict => t,
         CoachPersonality.minimal => t,
@@ -157,13 +283,13 @@ class PhraseBank {
       case RepResult.extraDeep:
         return _ar ? 'نِزْلَة عَميقَة، عاش!' : 'Extra deep, great';
       case RepResult.partial:
-        return _ar ? 'نُصّ $_rep، اِنْزِل أَكْتَر شُوَيَّة' : 'Half rep, go lower';
+        return _ar ? 'نُصّ $_rep، ${_y('اِنْزِل', 'اِنْزِلي')} أَكْتَر شُوَيَّة' : 'Half rep, go lower';
       case RepResult.partialNotCounted:
-        return _ar ? 'دي مَتْحَسَبِتْش، اِنْزِل أَكْتَر' : "Too shallow, that one didn't count";
+        return _ar ? 'دي مَتْحَسَبِتْش، ${_y('اِنْزِل', 'اِنْزِلي')} أَكْتَر' : "Too shallow, that one didn't count";
       case RepResult.incorrect:
       case RepResult.rejected:
         if (detail == 'Too shallow - not counted') {
-          return _ar ? 'دي مَتْحَسَبِتْش، اِنْزِل أَكْتَر' : "Too shallow, that one didn't count";
+          return _ar ? 'دي مَتْحَسَبِتْش، ${_y('اِنْزِل', 'اِنْزِلي')} أَكْتَر' : "Too shallow, that one didn't count";
         }
         if (f == null) return _ar ? 'دي مَتْحَسَبِتْش' : "That one didn't count";
         return _ar ? 'دي مَتْحَسَبِتْش$_s1$f' : "That one didn't count. $f";
@@ -173,15 +299,26 @@ class PhraseBank {
       case RepResult.incomplete:
         return switch (detail) {
           'Curl through full range' =>
-            _ar ? 'كَمِّل الحَرَكَة لِلآخِر، طالِع ونازِل' : 'Full range, all the way up and all the way down',
+            _ar
+                ? _y('كَمِّل الحَرَكَة لِلآخِر، طالِع ونازِل', 'كَمِّلي الحَرَكَة لِلآخِر، طالْعَة ونازْلَة')
+                : 'Full range, all the way up and all the way down',
           'Lower to chest, lock out' =>
-            _ar ? 'نَزِّل البار لِصِدْرَك وبَعْدين اِفْرِد دِراعَك لِلآخِر' : 'Bar to your chest, then lock out',
+            _ar
+                ? _y(
+                    'نَزِّل البار لِصِدْرَك وبَعْدين اِفْرِد دِراعَك لِلآخِر',
+                    'نَزِّلي البار لِصِدْرِك وبَعْدين اِفْرِدي دِراعِك لِلآخِر',
+                  )
+                : 'Bar to your chest, then lock out',
           'Hinge fully, then lock out' =>
-            _ar ? 'اِنْزِل لِلآخِر وبَعْدين اُقَف مَفْرود' : 'Hinge all the way, then stand tall',
+            _ar
+                ? _y('اِنْزِل لِلآخِر وبَعْدين اُقَف مَفْرود', 'اِنْزِلي لِلآخِر وبَعْدين اُقَفي مَفْرودَة')
+                : 'Hinge all the way, then stand tall',
           _ => _ar ? '$_rep مِش كامْلَة' : 'Incomplete rep',
         };
       case RepResult.squatNotDeadlift:
-        return _ar ? 'دي كانِت سْكوات مِش ديدْليفْت، اِتْني مِن وِسْطَك' : 'That was a squat. Hinge at your hips';
+        return _ar
+            ? 'دي كانِت سْكوات مِش ديدْليفْت، اِتْني مِن ${_y('وِسْطَك', 'وِسْطِك')}'
+            : 'That was a squat. Hinge at your hips';
     }
   }
 
@@ -190,15 +327,15 @@ class PhraseBank {
   static const _praise = <CoachPersonality, (List<String>, List<String>)>{
     CoachPersonality.calm: (
       ['Nice rep', 'Good, keep it smooth', 'Well done'],
-      ['مُمْتاز!', 'شُغْل حِلْو!', 'كَمِّل كِدَه!'],
+      ['مُمْتاز!', 'شُغْل حِلْو!', 'كَمِّل كِدَه!|كَمِّلي كِدَه!'],
     ),
     CoachPersonality.hype: (
       ['Yes! Beautiful rep!', "That's it, let's go!", 'Strong!'],
-      ['عاش!', 'بَرافو عَلَيْك!', 'أَداء حِلْو، خَلّيك مُرَكِّز!'],
+      ['عاش!', 'بَرافو عَلَيْك!|بَرافو عَلَيْكي!', 'أَداء حِلْو، خَلّيك مُرَكِّز!|أَداء حِلْو، خَلّيكي مُرَكِّزَة!'],
     ),
     CoachPersonality.strict: (
       ['Good. Next.', 'Acceptable. Keep going.', 'Better.'],
-      ['تَمام، كَمِّل', 'ماشي، اللي بَعْدُه', 'أَحْسَن'],
+      ['تَمام، كَمِّل|تَمام، كَمِّلي', 'ماشي، اللي بَعْدُه', 'أَحْسَن'],
     ),
     CoachPersonality.minimal: (['Good'], ['تَمام']),
   };
@@ -206,37 +343,48 @@ class PhraseBank {
   String praise(int i) {
     final p = _praise[_p]!;
     final l = _ar ? p.$2 : p.$1;
-    return l[i % l.length];
+    return _pick(l[i % l.length]);
+  }
+
+  /// 'to a man|to a woman' (a line without '|' is the same for both)
+  String _pick(String t) {
+    final bar = t.indexOf('|');
+    if (bar < 0) return t;
+    return _youF ? t.substring(bar + 1) : t.substring(0, bar);
   }
 
   /// bench press: a good rep that was lowered under control
-  String get controlled => _ar ? 'حِلْو، نازِل بِهُدوء' : 'Nice and controlled';
+  String get controlled => _ar ? 'حِلْو، ${_y('نازِل', 'نازْلَة')} بِهُدوء' : 'Nice and controlled';
 
   String _byP(List<String> en, List<String> ar) {
     final l = _ar ? ar : en;
-    return l[switch (_p) {
-      CoachPersonality.calm || CoachPersonality.minimal => 0,
-      CoachPersonality.hype => 1,
-      CoachPersonality.strict => 2,
-    }];
+    return _pick(
+      l[switch (_p) {
+        CoachPersonality.calm || CoachPersonality.minimal => 0,
+        CoachPersonality.hype => 1,
+        CoachPersonality.strict => 2,
+      }],
+    );
   }
 
   String get twoMore => _byP(
-        ['Two more', 'Two more! Push!', 'Two more. No excuses.'],
-        ['فاضِل اِتْنَيْن', 'فاضِل اِتْنَيْن! يَلّا!', 'فاضِل اِتْنَيْن، مَفيش أَعْذار'],
-      );
+    ['Two more', 'Two more! Push!', 'Two more. No excuses.'],
+    ['فاضِل اِتْنَيْن', 'فاضِل اِتْنَيْن! يَلّا!', 'فاضِل اِتْنَيْن، مَفيش أَعْذار'],
+  );
 
   String get lastOne => _byP(
-        ['Last one', 'Last one! Make it count!', 'Last one. Perfect form.'],
-        ['آخِر واحْدَة', 'آخِر واحْدَة! خَلّيها جامْدَة!', 'آخِر واحْدَة، $_form يِكون مَظْبوط'],
-      );
+    ['Last one', 'Last one! Make it count!', 'Last one. Perfect form.'],
+    ['آخِر واحْدَة', 'آخِر واحْدَة! خَلّيها جامْدَة!', 'آخِر واحْدَة، $_form يِكون مَظْبوط'],
+  );
 
   String get goalReached => _byP(
-        ["That's your goal", 'Goal smashed!', 'Goal done.'],
-        ['وِصِلْت لِلْهَدَف', 'كَسَّرْت الهَدَف!', 'الهَدَف خِلِص'],
-      );
+    ["That's your goal", 'Goal smashed!', 'Goal done.'],
+    ['وِصِلْت لِلْهَدَف|وِصِلْتي لِلْهَدَف', 'كَسَّرْت الهَدَف!|كَسَّرْتي الهَدَف!', 'الهَدَف خِلِص'],
+  );
 
-  String get fatigue => _ar ? 'بَدَأْت تِتْعَب، خُد نَفَسَك وخَلّيك مُرَكِّز' : "You're slowing down, keep your form tight";
+  String get fatigue => _ar
+      ? _y('بَدَأْت تِتْعَب، خُد نَفَسَك وخَلّيك مُرَكِّز', 'بَدَأْتي تِتْعَبي، خُدي نَفَسِك وخَلّيكي مُرَكِّزَة')
+      : "You're slowing down, keep your form tight";
 
   // ------------------------------------------------------------------ sets / rest
 
@@ -246,9 +394,9 @@ class PhraseBank {
       b.write(repCount(reps));
       if (clean < reps) b.write('$_p1مِنْهُم$_p1${number(clean)}$_p1مَظْبوطين');
       if (form != null) b.write('$_s1$_form$_p1${number(form)}');
-      if (topFault != null) b.write('$_s1$_theSet $_nextOne خَلّي بالَك$_p1${cue(topFault)}');
+      if (topFault != null) b.write('$_s1$_theSet $_nextOne خَلّي ${_y('بالَك', 'بالِك')}$_p1${cue(topFault)}');
       if (_p == CoachPersonality.hype) b.write('$_s1شُغْل حِلْو، عاش!');
-      if (_p == CoachPersonality.strict) b.write('$_s1خُد نَفَسَك، واللي جاي أَحْسَن');
+      if (_p == CoachPersonality.strict) b.write('$_s1${_y('خُد نَفَسَك', 'خُدي نَفَسِك')}، واللي جاي أَحْسَن');
     } else {
       b.write(repCount(reps));
       if (clean < reps) b.write(', $clean clean');
@@ -262,17 +410,22 @@ class PhraseBank {
   }
 
   /// one tip during the rest, from the most common fault of the set
-  String restTip(CoachCue c) => _ar ? 'نَصيحَة $_toTheSet $_nextOne$_p1${cue(c)}' : 'Tip for the next set: ${_lc(cue(c))}';
+  String restTip(CoachCue c) =>
+      _ar ? 'نَصيحَة $_toTheSet $_nextOne$_p1${cue(c)}' : 'Tip for the next set: ${_lc(cue(c))}';
 
   String restLeft(int seconds) {
-    if (seconds <= 10) return _ar ? 'فاضِل ${number(seconds)} ثَواني، جَهِّز نَفْسَك' : '$seconds seconds, get ready';
+    if (seconds <= 10) {
+      return _ar
+          ? 'فاضِل ${number(seconds)} ثَواني، ${_y('جَهِّز نَفْسَك', 'جَهِّزي نَفْسِك')}'
+          : '$seconds seconds, get ready';
+    }
     return _ar ? 'فاضِل ${number(seconds)} ثانْيَة' : '$seconds seconds left';
   }
 
   String restOver(int nextSet, {required bool commands}) {
     if (_ar) {
-      final t = 'الراحَة خِلْصِت، جاهِز $_toTheSet $_nextOne؟';
-      return commands ? '$t$_s1قول يَلّا، أَو وَقْت زِيادَة' : t;
+      final t = 'الراحَة خِلْصِت، ${_y('جاهِز', 'جاهْزَة')} $_toTheSet $_nextOne؟';
+      return commands ? '$t$_s1${_y('قول', 'قولي')} يَلّا، أَو وَقْت زِيادَة' : t;
     }
     final t = 'Rest is over. Ready for set $nextSet?';
     return commands ? '$t Say next, or more time.' : t;
@@ -281,27 +434,27 @@ class PhraseBank {
   String setStarting(int n) => _ar ? '$_theSet رَقَم$_p1${number(n)}' : 'Set $n';
 
   /// low-vision mode, when the rest screen opens
-  String get restStarted => _ar ? 'خُد راحَة شُوَيَّة' : 'Rest started';
+  String get restStarted => _ar ? _y('خُد راحَة شُوَيَّة', 'خُدي راحَة شُوَيَّة') : 'Rest started';
 
-  String get go => _byP(['Go', 'Go go go!', 'Go!'], ['يَلّا', 'يَلّا بينا!', 'اِبْدَأ!']);
+  String get go => _byP(['Go', 'Go go go!', 'Go!'], ['يَلّا', 'يَلّا بينا!', 'اِبْدَأ!|اِبْدَئي!']);
 
   // ------------------------------------------------------------------ celebrations
 
   String personalBestReps(int n) => _ar ? 'رَقَم قِياسي جِديد!$_s1${repCount(n)}' : 'New personal best, $n reps!';
 
-  String personalBestForm(int f) =>
-      _ar ? 'أَحْسَن $_form لِيك لِحَدّ دِلْوَقْتي$_p1${number(f)}$_p1في المِيَّة' : 'Your best form yet, $f percent!';
+  String personalBestForm(int f) => _ar
+      ? 'أَحْسَن $_form ${_y('لِيك', 'لِيكي')} لِحَدّ دِلْوَقْتي$_p1${number(f)}$_p1في المِيَّة'
+      : 'Your best form yet, $f percent!';
 
   // ------------------------------------------------------------------ misc
 
   String formScore(int f) => _ar ? '$_form$_p1${number(f)}' : 'Form $f';
 
-  String countReport(int setReps) =>
-      _ar ? '${repCount(setReps)}$_p1$_thisSet' : '${repCount(setReps)} this set';
+  String countReport(int setReps) => _ar ? '${repCount(setReps)}$_p1$_thisSet' : '${repCount(setReps)} this set';
 
   String get muted => _ar ? 'هَسْكُت دِلْوَقْتي' : 'Coach muted';
   String get unmuted => _ar ? 'رِجِعْت، يَلّا نِكَمِّل' : 'Coach is back';
-  String get listening => _ar ? 'سامْعَك' : 'Listening';
+  String get listening => _ar ? _coach(_y('سامْعَك', 'سامْعِك')) : 'Listening';
 
   static const _arNames = <String, (String, String)>{
     // (gym slang, plain)
@@ -324,7 +477,7 @@ class PhraseBank {
     final e = exerciseName(exercise);
     if (_ar) {
       return switch (_p) {
-        CoachPersonality.hype => '$e! يَلّا يا بَطَل، وَريني!',
+        CoachPersonality.hype => '$e! يَلّا يا ${_y('بَطَل', 'بَطَلَة')}، وَريني!',
         _ => '$e، يَلّا نِبْدَأ',
       };
     }
@@ -338,29 +491,39 @@ class PhraseBank {
   String cameraSetup(String exercise) {
     if (exercise.contains('Curl')) {
       return _ar
-          ? 'حُطّ الموبايل على مُسْتَوى وِسْطَك، على بُعْد مِتْرين لِتَلاتَة، وصَوَّر مِن الجَنْب عَشان دِراعَك ووِسْطَك يِبانوا.'
+          ? _y(
+              'حُطّ الموبايل على مُسْتَوى وِسْطَك، على بُعْد مِتْرين لِتَلاتَة، وصَوَّر مِن الجَنْب عَشان دِراعَك ووِسْطَك يِبانوا.',
+              'حُطّي الموبايل على مُسْتَوى وِسْطِك، على بُعْد مِتْرين لِتَلاتَة، وصَوَّري مِن الجَنْب عَشان دِراعِك ووِسْطِك يِبانوا.',
+            )
           : 'Place the phone at hip height, two to three meters away, and film from the side.';
     }
     if (exercise.contains('Squat')) {
       return _ar
-          ? 'حُطّ الموبايل على بُعْد تَلاتَة مِتْر على مُسْتَوى وِسْطَك، لازِم جِسْمَك كُلُّه يِبان لِحَدّ رِجْلَك.'
+          ? _y(
+              'حُطّ الموبايل على بُعْد تَلاتَة مِتْر على مُسْتَوى وِسْطَك، لازِم جِسْمَك كُلُّه يِبان لِحَدّ رِجْلَك.',
+              'حُطّي الموبايل على بُعْد تَلاتَة مِتْر على مُسْتَوى وِسْطِك، لازِم جِسْمِك كُلُّه يِبان لِحَدّ رِجْلِك.',
+            )
           : 'Place the phone about three meters away at hip height, with your whole body in view.';
     }
     if (exercise.contains('Deadlift')) {
       return _ar
-          ? 'صَوَّر مِن الجَنْب على مُسْتَوى وِسْطَك، واِبْعِد لِحَدّ ما راسَك ورِجْلَك يِبانوا.'
+          ? _y(
+              'صَوَّر مِن الجَنْب على مُسْتَوى وِسْطَك، واِبْعِد لِحَدّ ما راسَك ورِجْلَك يِبانوا.',
+              'صَوَّري مِن الجَنْب على مُسْتَوى وِسْطِك، واِبْعِدي لِحَدّ ما راسِك ورِجْلِك يِبانوا.',
+            )
           : 'Film from the side at hip height, far enough that your head and feet are in view.';
     }
     return _ar
-        ? 'صَوَّر مِن الجَنْب أَو مِن ناحْيِة راس البَنْش، على مُسْتَوى البَنْش.'
+        ? _y(
+            'صَوَّر مِن الجَنْب أَو مِن ناحْيِة راس البَنْش، على مُسْتَوى البَنْش.',
+            'صَوَّري مِن الجَنْب أَو مِن ناحْيِة راس البَنْش، على مُسْتَوى البَنْش.',
+          )
         : 'Film from the side or from the head end of the bench, at bench height.';
   }
 
   /// the "Test voice" button in the settings
   String get sample {
     final w = warning(CoachCue.kneesCaving);
-    return _ar
-        ? '$w$_s1${number(5)}$_s1نِزْلَة مُمْتازَة$_s1${praise(0)}'
-        : '$w 5. Perfect depth. ${praise(0)}';
+    return _ar ? '$w$_s1${number(5)}$_s1نِزْلَة مُمْتازَة$_s1${praise(0)}' : '$w 5. Perfect depth. ${praise(0)}';
   }
 }

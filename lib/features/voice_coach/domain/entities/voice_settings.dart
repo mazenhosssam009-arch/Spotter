@@ -50,6 +50,7 @@ class VoiceSettings extends Equatable {
     this.accessibility = false,
     this.egyptianClips = true,
     this.egyptianVoice,
+    this.trainee = VoiceGender.male,
   });
 
   /// false until the user picked a language once (the first-run picker)
@@ -92,6 +93,10 @@ class VoiceSettings extends Equatable {
   /// null = the default voice of [gender] (Ziad / Yasmine). Cleared when the gender changes.
   final String? egyptianVoice;
 
+  /// who the coach talks to (Arabic: ضم كوعك / ضمّي كوعِك). TEMPORARY test option: once the
+  /// app is merged, the user's profile passes it to TrainerScreen(trainee: ...) instead
+  final VoiceGender trainee;
+
   bool get enabled => verbosity != CoachVerbosity.off;
   bool get arabic => language == CoachLanguage.arabicEgyptian;
 
@@ -116,6 +121,7 @@ class VoiceSettings extends Equatable {
     bool? egyptianClips,
     String? egyptianVoice,
     bool clearEgyptianVoice = false,
+    VoiceGender? trainee,
   }) {
     // a voice of the other gender makes no sense: changing the gender goes back to its default
     final genderChanged = gender != null && gender != this.gender;
@@ -138,6 +144,7 @@ class VoiceSettings extends Equatable {
       accessibility: accessibility ?? this.accessibility,
       egyptianClips: egyptianClips ?? this.egyptianClips,
       egyptianVoice: clearEgyptianVoice ? null : (egyptianVoice ?? (genderChanged ? null : this.egyptianVoice)),
+      trainee: trainee ?? this.trainee,
     );
   }
 
@@ -160,6 +167,7 @@ class VoiceSettings extends Equatable {
         'accessibility': accessibility,
         'egyptianClips': egyptianClips,
         'egyptianVoice': egyptianVoice,
+        'trainee': trainee.name,
       };
 
   static T _enum<T extends Enum>(List<T> values, Object? name, T fallback) {
@@ -192,6 +200,7 @@ class VoiceSettings extends Equatable {
       accessibility: j['accessibility'] == true,
       egyptianClips: j['egyptianClips'] != false,
       egyptianVoice: j['egyptianVoice'] is String ? j['egyptianVoice'] as String : null,
+      trainee: _enum(VoiceGender.values, j['trainee'], d.trainee),
     );
   }
 
@@ -215,5 +224,6 @@ class VoiceSettings extends Equatable {
         accessibility,
         egyptianClips,
         egyptianVoice,
+        trainee,
       ];
 }

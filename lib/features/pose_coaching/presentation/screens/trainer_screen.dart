@@ -21,27 +21,34 @@ import 'package:ai_trainer/features/pose_coaching/presentation/widgets/rest_time
 import 'package:ai_trainer/features/pose_coaching/presentation/widgets/trainer_overlay.dart';
 import 'package:ai_trainer/features/pose_coaching/presentation/widgets/trainer_panel.dart';
 import 'package:ai_trainer/features/voice_coach/data/datasources/voice_command_listener.dart';
+import 'package:ai_trainer/features/voice_coach/domain/entities/voice_settings.dart';
 import 'package:ai_trainer/features/voice_coach/presentation/voice_coach.dart';
 import 'package:ai_trainer/features/voice_coach/presentation/widgets/voice_quick_sheet.dart';
 import 'package:ai_trainer/injection_container.dart';
 
 /// AiTrainer.py / SquatTrainer.py / DeadliftTrainer.py / BenchPressTrainer.py
 class TrainerScreen extends StatelessWidget {
-  const TrainerScreen({super.key, required this.exercise});
+  const TrainerScreen({super.key, required this.exercise, this.trainee});
   final Exercise exercise;
+
+  /// the user's gender from their profile (the main app passes it after the merge): the
+  /// Arabic coach then talks to a woman as a woman (ضمّي كوعِك، جاهْزَة؟). null = the test
+  /// option in the voice settings (temporary, until the merge)
+  final VoiceGender? trainee;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => sl<TrainerBloc>()..add(TrainerStarted(exercise: exercise)),
-      child: _TrainerView(exercise: exercise),
+      child: _TrainerView(exercise: exercise, trainee: trainee),
     );
   }
 }
 
 class _TrainerView extends StatefulWidget {
-  const _TrainerView({required this.exercise});
+  const _TrainerView({required this.exercise, this.trainee});
   final Exercise exercise;
+  final VoiceGender? trainee;
 
   @override
   State<_TrainerView> createState() => _TrainerViewState();
@@ -60,7 +67,7 @@ class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver 
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WakelockPlus.enable(); // the screen stays on during the whole workout
-    _coach = sl<VoiceCoach>()..attach(_bloc, widget.exercise);
+    _coach = sl<VoiceCoach>()..attach(_bloc, widget.exercise, trainee: widget.trainee);
     _commandSub = _coach.commands.listen(_onVoiceCommand);
   }
 

@@ -200,6 +200,22 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
                 selected: {s.gender},
                 onSelectionChanged: (v) => _set((x) => x.copyWith(gender: v.first, clearVoiceName: true)),
               ),
+              // TEMPORARY until the app is merged: then the user's profile gives the gender
+              // (TrainerScreen(trainee: ...)) and this option is removed
+              if (s.arabic) ...[
+                const SizedBox(height: 12),
+                Text('Talk to me as (test option until the app is merged)',
+                    style: Sp.bodySm.copyWith(color: Sp.muted)),
+                const SizedBox(height: 6),
+                SegmentedButton<VoiceGender>(
+                  segments: const [
+                    ButtonSegment(value: VoiceGender.male, label: Text('Man'), icon: Icon(Icons.man)),
+                    ButtonSegment(value: VoiceGender.female, label: Text('Woman'), icon: Icon(Icons.woman)),
+                  ],
+                  selected: {s.trainee},
+                  onSelectionChanged: (v) => _set((x) => x.copyWith(trainee: v.first)),
+                ),
+              ],
               if (s.arabic && _pack && s.egyptianClips && _egVoices.any((v) => v.gender == s.gender)) ...[
                 const SizedBox(height: 12),
                 DropdownButton<String>(

@@ -71,8 +71,11 @@ class VoiceCoach {
   /// commands the trainer screen carries out (finish set, next, more time...)
   Stream<VoiceCommand> get commands => _commandsOut.stream;
 
+  /// the user's gender from the main app's profile (null = the test option in the settings)
+  VoiceGender? _trainee;
+
   VoiceSettings get _s => settings.state;
-  PhraseBank get _say => PhraseBank(_s);
+  PhraseBank get _say => PhraseBank(_trainee == null ? _s : _s.copyWith(trainee: _trainee));
   bool get _on => _s.enabled && !muted.value;
   bool _atLeast(CoachVerbosity v) => _on && _s.verbosity.index >= v.index;
 
@@ -110,9 +113,10 @@ class VoiceCoach {
 
   // ------------------------------------------------------------------ lifecycle
 
-  void attach(TrainerBloc bloc, Exercise exercise) {
+  void attach(TrainerBloc bloc, Exercise exercise, {VoiceGender? trainee}) {
     _bloc = bloc;
     _exercise = exercise;
+    _trainee = trainee;
     _stateSub = bloc.stream.listen(_onState, onError: (Object e) => debugPrint('voice coach: $e'));
     _settingsSub = settings.stream.listen(_onSettings);
     _cmdSub = listener.commands.listen(_onCommand);
