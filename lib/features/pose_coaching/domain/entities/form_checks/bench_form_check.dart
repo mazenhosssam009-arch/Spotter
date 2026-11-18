@@ -24,9 +24,9 @@ class BenchFormCheck extends FormCheck {
       if (sh == null || el == null || wr == null) continue;
       final isRight = s[0] == 12;
       final hipId = isRight ? 24 : 23, idxId = isRight ? 20 : 19;
-      final hip = g.visible([hipId]) ? g.point(hipId) : null;
       final idx = g.visible([idxId]) ? g.point(idxId) : null;
-      if (hip != null) flares.add(PoseGeometry.angle(hip, sh, el)); // elbow-to-torso angle
+      final flare = g.shoulderFlare(hipId, s[0], s[1], armRef: i.baseline['upperArmSw']);
+      if (flare != null) flares.add(flare); // elbow-to-torso angle at the shoulder
       tilts.add(PoseGeometry.fromVertical(el, wr)); // forearm vs vertical
       if (idx != null) bends.add(PoseGeometry.angle(el, wr, idx)); // wrist straightness
       wrists.add(wr);
@@ -39,14 +39,33 @@ class BenchFormCheck extends FormCheck {
     final bd = bends.where((v) => v.isFinite).toList();
     // elbow flare: a range, not one universal angle (bottom half only)
     // From the SIDE the elbow-to-torso angle is about 90 degrees on every normal rep,
-    // so flare can only be judged from the head/foot end, and it only warns.
+    // so flare can only be judged from the head/foot end.
     if (front == true && fl.isNotEmpty) {
-      ev.limit(per >= 50 ? fl.reduce(math.max) - e.limit('flareMax', 75) : -1, 20, 'Elbows flared wide');
+      // Warn past flareMax and call it a clear fault past flareReject (the voice coach
+      // speaks at once; the RepCounter rejects the rep itself once the flare lasts).
+      // With the elbows straight out the bar sits over the shoulder joint and the arm
+      // is in the impingement range, the classic bench-press injury.
+      // See PoseGeometry.shoulderFlare: tucked is 45-70, straight out 90. The bands leave
+      // room for pose noise, so only a really wide flare throws the rep away.
+      // The raw angle jumps by +-10 degrees from frame to frame end-on, so the SMOOTHED
+      // flare (i.flare, the same one the rep rejection uses) is judged. Without it nothing
+      // is judged this frame: a noisy number would only make the coach nag.
+      final flareNow = i.flare;
+      if (flareNow != null) {
+        ev.limit(
+            per >= 50 ? flareNow - e.limit('flareMax', 80) : -1,
+            20,
+            'Elbows flared wide',
+            block: true,
+            blockAt: e.limit('flareReject', 100) - e.limit('flareMax', 80));
+      }
       ev.limit(per >= 50 ? e.limit('flareMin', 30) - fl.reduce(math.min) : -1, 15, 'Elbows tucked in');
-    } else if (front != true) {
+    } else if (front == false) {
       ev.note = 'Flare needs head/foot view';
-    } else {
+    } else if (front == null) {
       ev.note = 'Hips hidden - flare unchecked';
+    } else {
+      ev.note = 'Flare unchecked'; // arm length not learned yet / arm points at the lens
     }
     // forearm should be close to vertical near the chest (wrist stacked over elbow)
     if (tl.isNotEmpty) {

@@ -2,10 +2,13 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "AI Trainer Fast (release)",
+      // F5 / Run & Debug always launches in debug mode: hot reload, breakpoints, debug console.
+      // (the old "release" config was removed so it cannot be picked by accident)
+      "name": "AI Trainer (debug, hot reload)",
       "request": "launch",
       "type": "dart",
-      "flutterMode": "release"
+      "program": "lib/main.dart",
+      "flutterMode": "debug"
     }
   ]
 }

@@ -17,6 +17,7 @@ class FormCheckInput {
     this.lowering = false,
     this.speed = 0,
     this.lyingSeen = false,
+    this.flare,
   });
 
   final PoseGeometry pose;
@@ -45,6 +46,11 @@ class FormCheckInput {
 
   /// bench: the lifter has been seen lying down
   final bool lyingSeen;
+
+  /// bench: the elbow flare (worst arm) smoothed in time by the RepCounter, null = no reading.
+  /// The form check judges THIS, not the raw per-frame angle, so the warning, the coach and
+  /// the form score see the same steady number the rep rejection uses.
+  final double? flare;
 }
 
 /// the form rules of one exercise for one frame

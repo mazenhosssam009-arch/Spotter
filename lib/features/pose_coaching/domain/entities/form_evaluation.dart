@@ -1,6 +1,7 @@
 /// result of the form checks for one frame
 class FormEvaluation {
   final scores = <double>[]; // one 0..1 score per alignment check
+  final named = <String, double>{}; // the same scores by message (debug view: who drags the score)
   final warns = <String>[]; // messages for checks that are out of tolerance
   final blocking = <String>[]; // clear faults: these reject the rep
   bool assessable = false; // false = not enough landmarks to judge form
@@ -12,6 +13,7 @@ class FormEvaluation {
     if (!over.isFinite) return;
     final s = over <= 0 ? 1.0 : (1 - over / soft).clamp(0.0, 1.0).toDouble();
     scores.add(s);
+    named[msg] = s;
     if (over > 0) {
       warns.add(msg);
       // blockAt: reject the rep only when [over] reaches this (warn earlier, reject later)
