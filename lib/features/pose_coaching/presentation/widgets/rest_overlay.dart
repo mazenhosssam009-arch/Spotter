@@ -1,6 +1,5 @@
 import 'dart:math' as math;
-
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:ai_trainer/core/theme/spotter_theme.dart';

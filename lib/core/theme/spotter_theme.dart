@@ -4,10 +4,9 @@
 //
 // Needs the `google_fonts` package (Space Grotesk, IBM Plex Sans, Cairo for Arabic).
 
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-
 import 'package:ai_trainer/core/theme/app_theme.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// colour + type tokens (values read from the mockups' code.html)
 class Sp {
@@ -49,16 +48,23 @@ class Sp {
         letterSpacing: size * lsEm,
         height: lh / size,
         color: onSurface,
-      ).copyWith(fontFamilyFallback: [_ar], fontFeatures: const [FontFeature.tabularFigures()]);
+      ).copyWith(
+        fontFamilyFallback: [_ar],
+        fontFeatures: const [FontFeature.tabularFigures()],
+      );
 
-  static TextStyle _body(double size, FontWeight w, double lh, [double ls = 0]) =>
-      GoogleFonts.ibmPlexSans(
-        fontSize: size,
-        fontWeight: w,
-        letterSpacing: ls,
-        height: lh / size,
-        color: onSurface,
-      ).copyWith(fontFamilyFallback: [_ar]);
+  static TextStyle _body(
+    double size,
+    FontWeight w,
+    double lh, [
+    double ls = 0,
+  ]) => GoogleFonts.ibmPlexSans(
+    fontSize: size,
+    fontWeight: w,
+    letterSpacing: ls,
+    height: lh / size,
+    color: onSurface,
+  ).copyWith(fontFamilyFallback: [_ar]);
 
   static final displayMetric = _head(56, FontWeight.w700, -0.04, 60);
   static final headlineLg = _head(32, FontWeight.w700, -0.02, 38);
@@ -74,4 +80,3 @@ class Sp {
 
 /// The Spotter theme is the app's shared theme (app_theme.dart), so every screen matches.
 ThemeData spotterTheme() => AppTheme.dark;
-

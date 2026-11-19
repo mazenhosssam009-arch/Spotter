@@ -98,8 +98,13 @@ class RepCounter {
   // ---- bench: must really be lying down ----
   static const lyingSeconds = 0.3;
   static const armsDownSeconds = 0.25; // a curl: one jumpy frame must not count
-  double? lyingSince;
-  double? notLyingSince;
+  double? lyingSince; // null = gate closed
+  // Running balance (seconds) of "clearly upright" evidence: grows while the check says
+  // upright, drops fast while it says lying and slowly while it cannot tell. One noisy or
+  // unknown frame can no longer reset it (or re-open the gate), so the verdict is steady.
+  double uprightFor = 0;
+  double?
+  lastLyingT; // time of the last lying-check frame (for the balance above)
   double? armsDownSince; // upper arms hanging beside the ribs since
   String? gateMsg; // red hint when the exercise position is wrong
   bool lyingCheck =
@@ -113,6 +118,21 @@ class RepCounter {
   double benchFlare = 0, benchFlareNow = 0;
   double? flareOverSince;
   bool benchFlared = false;
+
+  // ---- bench: the forearms must point UP (wrist above the elbow, and above the shoulder at
+  // lockout). Rotating the shoulder down so the forearm points forward is not a press. ----
+  // seconds of this rep with the forearm out of the pressing position (see _checkPressPosition)
+  double benchOffTime = 0;
+  double pressLastT = 0;
+  double pressTiltNow =
+      0; // debug: worst forearm tilt from vertical this frame, degrees
+  bool pressOffNow = false; // debug: forearm out of position this frame
+  // the last frame in which the wrists could be judged: were they above the shoulders?
+  // A rep that ends with the arms down (resting them on the floor) is not a press, see
+  // _finishRep. Wrists that were not seen for a moment never reject (see pressUpFresh).
+  static const pressUpFresh = 0.4; // seconds the last reading stays valid
+  double pressUpLastT = -99;
+  bool pressUpLast = true;
   // the flare is smoothed in TIME (not per frame): a phone at 8 fps and one at 25 fps must
   // reject the same reps. [flareSmooth] = smoothed worst-arm flare, null = no reading yet.
   static const flareTau = 0.2; // seconds
@@ -244,7 +264,8 @@ class RepCounter {
   void toggleLyingCheck() {
     lyingCheck = !lyingCheck;
     lyingSince = null;
-    notLyingSince = null;
+    uprightFor = 0;
+    lastLyingT = null;
     armsDownSince = null;
   }
 
@@ -456,8 +477,8 @@ class RepCounter {
   /// bench: is the user lying down? (keeps the numbers for the debug view)
   bool? _lying(PoseGeometry g, Exercise e) {
     final r = g.lying(
-      tiltLimit: e.limit('lyingTilt', 35),
-      ratioLimit: e.limit('lyingRatio', 0.9),
+      tiltLimit: e.limit('lyingTilt', 45),
+      ratioLimit: e.limit('lyingRatio', 1.0),
     );
     dbgSrc = r.source;
     if (r.tilt != null) dbgTilt = r.tilt!;
@@ -515,6 +536,50 @@ class RepCounter {
     } else {
       flareOverSince = null;
     }
+  }
+
+  /// bench: is the forearm in a pressing position? In a real press the forearm points UP
+  /// the whole rep: the wrist is above the elbow and the forearm is near vertical, and at
+  /// lockout the wrist is above the shoulder. Rotating the shoulder down (upper arm hanging,
+  /// forearm swinging out in FRONT of the shoulder) moves the elbow angle through the same
+  /// range, so the angle alone counted it as a rep. Frames where an arm is out of position
+  /// add up in [benchOffTime]; _finishRep rejects the rep when it was out of position for too
+  /// much of it. Measured only inside a rep, and only on arms that are really seen: when
+  /// nothing can be judged the frame counts as fine, so a hidden wrist never rejects a rep.
+  ///
+  /// Also keeps [pressUpLast]: whether the wrists were above the shoulders in the last frame
+  /// they could be judged. _finishRep uses it so a rep that ENDS with the arms down (arm
+  /// dropped onto the floor after the set) is never counted, however short that drop was.
+  void _checkPressPosition(PoseGeometry g, Exercise e, double t, double per) {
+    final dt = (t - pressLastT).clamp(0.0, 0.5).toDouble();
+    pressLastT = t;
+    pressTiltNow = 0;
+    pressOffNow = false;
+    if (!attempt) return;
+    var judged = 0;
+    var off = false;
+    var notUp = false; // a wrist is not above its shoulder this frame
+    for (final arm in [e.right, if (e.left != null) e.left!]) {
+      if (!g.visible(arm)) continue;
+      final sh = g.point(arm[0]), el = g.point(arm[1]), wr = g.point(arm[2]);
+      if (sh == null || el == null || wr == null) continue;
+      final upper = (el - sh).distance;
+      if (upper < 1 || (wr - el).distance < 1) continue;
+      judged++;
+      final tilt = PoseGeometry.fromVertical(el, wr); // forearm vs vertical
+      pressTiltNow = math.max(pressTiltNow, tilt);
+      // forearm must point up: wrist above the elbow and near vertical (image y grows down)
+      if (wr.dy >= el.dy || tilt > e.limit('pressTilt', 40)) off = true;
+      // near lockout the wrist must be above the shoulder, not out in front of it
+      if (per <= 30 && wr.dy > sh.dy - 0.25 * upper) off = true;
+      // same height test, in every frame: used by the end-of-rep check in _finishRep
+      if (wr.dy > sh.dy - 0.25 * upper) notUp = true;
+    }
+    if (judged == 0) return;
+    pressUpLast = !notUp;
+    pressUpLastT = t;
+    pressOffNow = off;
+    if (off) benchOffTime += dt;
   }
 
   /// bench, camera at the head/foot end: learn the length of the upper arm in shoulder
@@ -616,6 +681,26 @@ class RepCounter {
       repLabel = 'Rejected';
       repLevel = FormLevel.bad;
       repDetail = 'Elbows flared wide';
+      repLabelTime = t;
+      return;
+    }
+    // bench only: the forearm was not pointing up for a good part of the rep (shoulder
+    // rotated down, forearm out in front) = not a bench press, do not count.
+    if (isBench && benchOffTime / dur >= e.limit('pressOffFrac', 0.2)) {
+      repLabel = 'Rejected';
+      repLevel = FormLevel.bad;
+      repDetail = 'Keep forearms above shoulders';
+      repLabelTime = t;
+      return;
+    }
+    // bench only: a press ends with the wrists above the shoulders. If the last frame the
+    // wrists could be seen shows them below the shoulders, the arm was dropped (e.g. onto
+    // the floor after the set), not locked out: do not count. A reading older than
+    // [pressUpFresh] (wrists hidden) is ignored, so a hidden wrist never rejects a rep.
+    if (isBench && t - pressUpLastT <= pressUpFresh && !pressUpLast) {
+      repLabel = 'Rejected';
+      repLevel = FormLevel.bad;
+      repDetail = 'Finish with arms up';
       repLabelTime = t;
       return;
     }
@@ -732,7 +817,7 @@ class RepCounter {
 
   /// the person left or is hidden for a while: forget the half-finished rep
   /// (before, a rep started, the person walked out, came back and it was counted)
-  void resetTracking() {
+  void resetTracking({bool keepSetup = false}) {
     dir = 0;
     attempt = false;
     bottomSince = null;
@@ -751,7 +836,8 @@ class RepCounter {
     squatLike = false;
     minKnee = 999;
     lyingSince = null;
-    notLyingSince = null;
+    uprightFor = 0;
+    lastLyingT = null;
     armsDownSince = null;
     gateMsg = null;
     benchFlare = 0;
@@ -759,13 +845,17 @@ class RepCounter {
     flareOverSince = null;
     benchFlared = false;
     flareSmooth = null;
+    benchOffTime = 0;
+    pressTiltNow = 0;
+    pressOffNow = false;
+    pressUpLast = true;
+    pressUpLastT = -99;
     upEff = 0;
     downEff = 0;
     settledSince = null;
     deadBar = null;
     deadBarTime = 0;
     frontSquatDbg = false;
-    setupUntil = null; // body lost: give the 5 s to get into position again
   }
 
   /// bad numbers (NaN) and one-frame tracking glitches must not move the angle
@@ -819,8 +909,11 @@ class RepCounter {
     } else {
       bottomSince = null; // python: hold = 0 when joints are hidden
       curPer = 0;
-      if (t - lastSeenTime > (isDead ? deadLostGrace : lostGrace))
-        resetTracking();
+      final lostFor = t - lastSeenTime;
+      if (lostFor > ((isDead || isBench) ? deadLostGrace : lostGrace)) {
+        // a short bench dropout must not bring back the 5 s countdown
+        resetTracking(keepSetup: isBench && lostFor < 4.0);
+      }
       // set after the reset, because resetTracking clears gateMsg
       if (isDead) gateMsg = 'Show your full body';
       if (isBench) gateMsg = 'Show shoulder, elbow, wrist';
@@ -939,6 +1032,7 @@ class RepCounter {
     // ---- BENCH: learn the arm length (end-on view), then remember the worst elbow flare ----
     if (isBench && front == true) _learnUpperArm(g, e, dir == 0 && !attempt);
     if (isBench) _checkFlare(g, e, t, per, front);
+    if (isBench) _checkPressPosition(g, e, t, per);
 
     // ---- form checks for this frame ----
     final idle = dir == 0 && !attempt;
@@ -997,6 +1091,18 @@ class RepCounter {
     if (isBench && lyingCheck) {
       final ly = _lying(g, e);
       dbgAlong = _armsAlongTorso(g, e);
+      // keep the balance of "upright" evidence (see [uprightFor])
+      final dt = lastLyingT == null
+          ? 0.0
+          : (t - lastLyingT!).clamp(0.0, 0.5).toDouble();
+      lastLyingT = t;
+      if (ly == false) {
+        uprightFor += dt;
+      } else if (ly == true) {
+        uprightFor = math.max(0.0, uprightFor - 3 * dt);
+      } else {
+        uprightFor = math.max(0.0, uprightFor - 0.5 * dt);
+      }
       // one bad frame must not throw a real bench rep away: the arms have to hang there
       armsDownSince = dbgAlong ? (armsDownSince ?? t) : null;
       if (armsDownSince != null && t - armsDownSince! >= armsDownSeconds) {
@@ -1004,16 +1110,13 @@ class RepCounter {
         // elbows away from the ribs): close the gate, so a curl is never counted as a
         // bench press
         lyingSince = null;
-        notLyingSince = null;
-      } else if (ly == false) {
-        // clearly upright: drop the lying state only after 2 s (4 s mid-rep)
-        notLyingSince ??= t;
-        if (t - notLyingSince! > (attempt || dir != 0 ? 4.0 : 2.0))
-          lyingSince = null;
-      } else {
-        // lying, or cannot tell (null): do not block
-        lyingSince ??= t;
-        notLyingSince = null;
+      } else if (uprightFor >= (attempt || dir != 0 ? 4.0 : 2.0)) {
+        // clearly upright for 2 s (4 s mid-rep): close the gate and keep it closed until
+        // the evidence has really gone (a few lying frames, or a longer stretch of unknown)
+        lyingSince = null;
+      } else if (lyingSince == null && uprightFor < 0.5) {
+        // lying, or cannot tell: do not block
+        lyingSince = t;
       }
       gateOk = lyingSince != null && t - lyingSince! >= lyingSeconds;
       if (!gateOk) gateMsg = 'Lie on the bench';
@@ -1138,6 +1241,9 @@ class RepCounter {
       flareOverSince = null;
       benchFlared = false;
       flareSmooth = null;
+      benchOffTime = 0;
+      pressUpLast = true;
+      pressUpLastT = -99;
       settledSince = null;
       // smoothness / average form of this rep start from zero
       repSpeedPeak = 0;
@@ -1259,7 +1365,7 @@ class RepCounter {
     if (isBench) {
       dbg.add(
         'lying ${gateOk ? 'YES' : 'no'}  src $dbgSrc  tilt ${dbgTilt.round()} '
-        'need ${e.limit('lyingTilt', 35).round()}'
+        'need ${e.limit('lyingTilt', 30).round()}'
         '${dbgRatio >= 0 ? '  ratio ${dbgRatio.toStringAsFixed(1)}' : ''}',
       );
       dbg.add('R arm $rightOk  L arm $leftOk');
@@ -1276,6 +1382,11 @@ class RepCounter {
         'armRef ${(baseline['upperArmSw'] ?? 0).toStringAsFixed(2)}'
         '${benchFlared ? '  REJECTED' : ''})  '
         'arms beside torso ${dbgAlong ? 'YES' : 'no'}',
+      );
+      dbg.add(
+        'forearm tilt ${pressTiltNow.round()} (max ${e.limit('pressTilt', 45).round()})  '
+        '${pressOffNow ? 'OFF' : 'ok'}  off ${benchOffTime.toStringAsFixed(2)}s  '
+        'wrists up ${pressUpLast ? 'YES' : 'no'}',
       );
     }
     if (isDead) {

@@ -12,7 +12,7 @@
 /// (deadlift facing the camera: hip-to-ankle height lost, default 0.38, sumo 0.50,
 /// romanian 0.25), frontDead 10 and frontGain 1.5 (deadlift facing the camera),
 /// swingReject 20 and elbowDriftReject 30 (curl: degrees PAST the warning limit
-/// before a rep is rejected), lyingTilt 35 and lyingRatio 0.9 (bench: how
+/// before a rep is rejected), lyingTilt 30 and lyingRatio 1.0 (bench: how
 /// horizontal the torso must be), flareReject 100 (bench: elbow flare at the
 /// shoulder past which the rep is NOT counted).
 /// armShorten 0.25 (curl facing the camera: how much the upper arm may look
