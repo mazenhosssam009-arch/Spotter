@@ -8,6 +8,9 @@ import 'package:ai_trainer/features/pose_coaching/domain/entities/pose_geometry.
 class CurlFormCheck extends FormCheck {
   const CurlFormCheck();
 
+  /// raised, tense shoulders (also used by the RepCounter and the voice coach)
+  static const raisedMsg = 'Shoulders raised - relax them';
+
   @override
   FormEvaluation check(FormCheckInput i) {
     final g = i.pose, e = i.exercise, base = i.baseline, idle = i.idle;
@@ -51,6 +54,29 @@ class CurlFormCheck extends FormCheck {
           block: true,
           blockAt: e.limit('elbowMoveReject', 0.10) * k,
         );
+        // 0c) raised, tense shoulders (a shrug): the shoulder rises toward the ear, so the
+        // ear-to-shoulder distance shrinks. A neck is short, so this is far more sensitive than
+        // the torso length (check 3). The reference is the LONGEST (most relaxed) neck seen while
+        // idle, in upper-arm lengths, so someone who starts the set tense is caught as soon as
+        // they have relaxed once. Warns at shoulderRaise (fraction shorter than relaxed) and
+        // REJECTS the rep at shoulderRaise + shoulderRaiseReject once that lasts
+        // shoulderRaiseSeconds (see RepCounter). Skipped when the ear on this side is not seen
+        // (filmed from the other side).
+        final earId = isRight ? 8 : 7;
+        final ear = g.point(earId);
+        if (ear != null && g.visible([earId])) {
+          final neck = (ear - s).distance / ruler;
+          final relaxed = base.standing('neck${arm[0]}', neck, idle);
+          if (relaxed > 0) {
+            ev.limit(
+              1 - neck / relaxed - e.limit('shoulderRaise', 0.10),
+              0.15,
+              raisedMsg,
+              block: true,
+              blockAt: e.limit('shoulderRaiseReject', 0.08),
+            );
+          }
+        }
         ev.assessable = true;
       }
       // hip based checks (only when the hip is seen)

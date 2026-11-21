@@ -36,6 +36,11 @@ const exercises = [
       'armShorten': 0.12,
       'armShortenReject': 0.08,
       'armDownMax': 45,
+      // raised, tense shoulders: warns when the ear-to-shoulder distance is 10% shorter than the
+      // relaxed one, rejects the rep at 18% shorter if it lasts 0.4 s
+      'shoulderRaise': 0.10,
+      'shoulderRaiseReject': 0.08,
+      'shoulderRaiseSeconds': 0.4,
       'frontStrict': 0.87, //front view strictness inverse
     },
   ),

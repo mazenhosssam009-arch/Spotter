@@ -65,6 +65,7 @@ enum CoachCue {
     'Swinging - stay still': CoachCue.swinging,
     'Leaning - keep still': CoachCue.leaning,
     'Shoulders shrugging': CoachCue.shrugging,
+    'Shoulders raised - relax them': CoachCue.shrugging,
     'Torso twisting': CoachCue.torsoTwist,
     'Chest up - leaning far': CoachCue.chestUp,
     'Keep spine neutral': CoachCue.spineNeutral,

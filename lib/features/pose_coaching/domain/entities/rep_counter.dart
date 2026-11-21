@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:ai_trainer/core/utils/cv_math.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/coaching_feedback.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/exercise.dart';
+import 'package:ai_trainer/features/pose_coaching/domain/entities/form_checks/curl_form_check.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/form_checks/form_check.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/form_checks/form_evaluator.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/form_evaluation.dart';
@@ -1283,7 +1284,12 @@ class RepCounter {
         };
         for (final m in now) {
           final since = curlBlockSince.putIfAbsent(m, () => t);
-          if (t - since >= curlFaultSeconds) repFaults.add(m);
+          // raised, tense shoulders are a held state, not a quick swing: the ear landmark is
+          // noisier than the swing checks, so this one has to last longer before it rejects
+          final need = m == CurlFormCheck.raisedMsg
+              ? e.limit('shoulderRaiseSeconds', 0.4)
+              : curlFaultSeconds;
+          if (t - since >= need) repFaults.add(m);
         }
         curlBlockSince.removeWhere((m, _) => !now.contains(m));
       }
