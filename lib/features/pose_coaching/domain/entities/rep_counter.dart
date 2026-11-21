@@ -199,6 +199,12 @@ class RepCounter {
   // ---- curl: filmed facing the camera (frozen during a rep, like deadFront) ----
   bool curlFront = false;
 
+  // ---- curl: swing faults are latched during a rep (see _stepRep) ----
+  // a swing / elbow / shoulder fault that lasts this long rejects the rep (2+ frames, so a
+  // one-frame tracking glitch does not)
+  static const curlFaultSeconds = 0.08;
+  final curlBlockSince = <String, double>{};
+
   // ---- per-rep smoothness ----
   double repSpeedPeak = 0, repSpeedVar = 0, lastRepSpeed = 0;
   bool repSpeedInit = false;
@@ -856,6 +862,7 @@ class RepCounter {
     deadBar = null;
     deadBarTime = 0;
     frontSquatDbg = false;
+    curlBlockSince.clear();
   }
 
   /// bad numbers (NaN) and one-frame tracking glitches must not move the angle
@@ -1057,7 +1064,7 @@ class RepCounter {
     lastEval = ev;
 
     // ---- rep state machine (the bloc stops sending frames while the rest timer runs) ----
-    final reachPer = _stepRep(e, t, per, perRaw, smoothed, gateOk);
+    final reachPer = _stepRep(e, t, per, perRaw, smoothed, gateOk, armDown: armDown);
     score.update(
       ev,
       t,
@@ -1149,7 +1156,9 @@ class RepCounter {
     for (final arm in [e.right, if (e.left != null) e.left!]) {
       final s = g.point(arm[0]), el = g.point(arm[1]);
       if (s == null || el == null) continue;
-      if (el.dy <= s.dy || PoseGeometry.fromVertical(s, el) > 45) return false;
+      if (el.dy <= s.dy || PoseGeometry.fromVertical(s, el) > e.limit('armDownMax', 35)) {
+        return false;
+      }
     }
     return true;
   }
@@ -1225,14 +1234,16 @@ class RepCounter {
     double per,
     double perRaw,
     double smoothed,
-    bool gateOk,
-  ) {
+    bool gateOk, {
+    bool armDown = true,
+  }) {
     if (!attempt && perRaw > 15 && gateOk && !needRest) {
       attempt = true; // left the top
       repStartTime = t;
       peakPer = 0;
       minAngle = smoothed;
       repFaults.clear();
+      curlBlockSince.clear();
       squatLike = false;
       frontSquatDbg = false;
       minKnee = 999;
@@ -1255,9 +1266,26 @@ class RepCounter {
     if (attempt) {
       peakPer = math.max(peakPer, per);
       minAngle = math.min(minAngle, smoothed);
-      for (final m in shown) {
-        if (warnings.isSevere(m, t))
-          repFaults.add(m); // only faults that lasted count
+      if (!isCurl) {
+        for (final m in shown) {
+          if (warnings.isSevere(m, t))
+            repFaults.add(m); // only faults that lasted count
+        }
+      } else {
+        // curl: swinging is quick (often shorter than warnDelay), so a swing / elbow / shoulder
+        // fault, or the upper arm leaving the body, rejects the rep as soon as it lasts
+        // curlFaultSeconds, without waiting for the warning to be shown. This latch is the only
+        // rule for the curl: one reject-level frame (pose jitter at the top of the curl) after a
+        // warning was already showing must not reject the rep.
+        final now = <String>{
+          ...?lastEval?.blocking,
+          if (!armDown) 'Keep your upper arm down',
+        };
+        for (final m in now) {
+          final since = curlBlockSince.putIfAbsent(m, () => t);
+          if (t - since >= curlFaultSeconds) repFaults.add(m);
+        }
+        curlBlockSince.removeWhere((m, _) => !now.contains(m));
       }
       if (repSpeedInit) repSpeedVar += (speed - lastRepSpeed).abs();
       repSpeedInit = true;
@@ -1288,7 +1316,13 @@ class RepCounter {
               ? (deadFront
                     ? e.limit('frontReach', 85)
                     : e.limit('sideReach', 90))
-              : (isBench ? e.limit('benchReach', 90) : 100.0));
+              : (isBench
+                    ? e.limit('benchReach', 90)
+                    // curl: the smoothed 2D elbow angle rarely touches the exact 100% line
+                    // (lag + pose noise, worse on faster reps), so the bottom counts a little
+                    // earlier. Must stay above 90: the upper-arm-raised cap (per <= 90) must
+                    // still block the bottom.
+                    : (isCurl ? e.limit('curlReach', 92) : 100.0)));
     final holdNeed = isDead
         ? (deadFront ? holdSeconds : deadHoldSeconds)
         : (isBench ? benchHoldSeconds : holdSeconds);
@@ -1304,7 +1338,11 @@ class RepCounter {
     // ends when the bar is near the top (< 30%) and the lifter stands still for half a second.
     // Bench: the lockout is read from the raw depth too (see perRaw in update), otherwise a
     // continuous touch-and-go set never reaches the top in the smoothed signal.
-    final topPer = isDead ? 12.0 : (isBench ? 10.0 : 0.0);
+    // curl: a relaxed arm hanging reads about 150-160 in 2D, so the top is a little before 0%
+    // (still below the 15% that starts a rep, so the two do not flicker)
+    final topPer = isDead
+        ? 12.0
+        : (isBench ? 10.0 : (isCurl ? e.limit('curlTop', 12) : 0.0));
     var atTop = perRaw <= topPer;
     if (isDead && dir == 1 && per < 30 && speed < 10) {
       settledSince ??= t;

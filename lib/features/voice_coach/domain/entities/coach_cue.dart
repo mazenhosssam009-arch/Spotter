@@ -60,6 +60,8 @@ enum CoachCue {
     'Stance too wide': CoachCue.stanceWide,
     'Knees caving in': CoachCue.kneesCaving,
     'Elbow drifting forward': CoachCue.elbowDrift,
+    'Elbow moving - keep it by your side': CoachCue.elbowDrift,
+    'Shoulder moving - stay still': CoachCue.shrugging,
     'Swinging - stay still': CoachCue.swinging,
     'Leaning - keep still': CoachCue.leaning,
     'Shoulders shrugging': CoachCue.shrugging,
