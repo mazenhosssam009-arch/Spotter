@@ -59,52 +59,22 @@ abstract class FormCheck {
 
   FormEvaluation check(FormCheckInput i);
 
-  /// stance width (ankles / shoulders) and knee cave: only meaningful facing the camera.
-  /// [caveBlockAt] / [blockStance] are only used by the deadlift: with the defaults (null /
-  /// false) this behaves exactly as before, so the squat is unchanged.
-  static void frontChecks(
-    FormEvaluation ev,
-    FormCheckInput i,
-    double sMin,
-    double sMax, {
-    double caveLim = 0.15,
-    bool blockCave = true,
-    double? caveBlockAt, // null = old behavior
-    bool blockStance = false,
-  }) {
-    // false = old behavior
+  /// stance width (ankles / shoulders) and knee cave: only meaningful facing the camera
+  static void frontChecks(FormEvaluation ev, FormCheckInput i, double sMin, double sMax,
+      {double caveLim = 0.15, bool blockCave = true}) {
     final g = i.pose, e = i.exercise;
-    final a1 = g.point(27),
-        a2 = g.point(28),
-        s1 = g.point(11),
-        s2 = g.point(12);
-    if (a1 != null &&
-        a2 != null &&
-        s1 != null &&
-        s2 != null &&
-        g.visible([27, 28])) {
+    final a1 = g.point(27), a2 = g.point(28), s1 = g.point(11), s2 = g.point(12);
+    if (a1 != null && a2 != null && s1 != null && s2 != null && g.visible([27, 28])) {
       final sw = (s1 - s2).distance;
       if (sw > 1) {
         final ratio = (a1 - a2).distance / sw;
-        ev.limit(
-          e.limit('stanceMin', sMin) - ratio,
-          0.3,
-          'Stance too narrow',
-          block: blockStance,
-          blockAt: 0.0,
-        );
+        ev.limit(e.limit('stanceMin', sMin) - ratio, 0.3, 'Stance too narrow');
         ev.limit(ratio - e.limit('stanceMax', sMax), 0.5, 'Stance too wide');
       }
     }
     final cave = g.kneeCave();
     if (cave != null) {
-      ev.limit(
-        i.per >= 30 ? cave - e.limit('kneeCave', caveLim) : -1,
-        0.2,
-        'Knees caving in',
-        block: blockCave,
-        blockAt: caveBlockAt,
-      );
+      ev.limit(i.per >= 30 ? cave - e.limit('kneeCave', caveLim) : -1, 0.2, 'Knees caving in', block: blockCave);
     }
   }
 }

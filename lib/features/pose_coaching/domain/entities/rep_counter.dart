@@ -75,13 +75,6 @@ class RepCounter {
       0.25; // python: 10 frames; a real lift rarely pauses 0.67 s
   static const deadLostGrace = 1.0; // python: hidden > 1 s cancels the rep
   bool squatLike = false; // knees bent to squat depth during this deadlift rep
-  // deadlift only: faults (warning texts) that make the rep NOT count (see _finishRep).
-  // Both are measured facing the camera only.
-  static const deadFaultRejects = ['Knees caving in', 'Stance too narrow'];
-  // deadlift facing the camera: smallest torso length (shoulder-to-hip / shoulder width) of
-  // this rep as a fraction of the lifter's own standing value. A hinge foreshortens the torso
-  // a lot toward the camera, a squat keeps it long. 99 = not measured.
-  double minTorsoRatio = 99;
   double minKnee = 999; // smallest knee angle seen during the current rep
   bool deadFront =
       false; // deadlift filmed facing the camera (frozen during a rep)
@@ -687,34 +680,6 @@ class RepCounter {
       repLabelTime = t;
       return;
     }
-    // deadlift only, facing the camera: the torso never foreshortened toward the lens, so the
-    // lifter did not hinge = it was a squat (the wrists alone cannot tell the two apart:
-    // they also pass between the knees and the ankles in a deadlift). frontHingeMax is the
-    // highest torso ratio (fraction of the standing length) that still counts as a hinge.
-    // Measured from the front: squat 0.46-0.49, real deadlift 0.05-0.07 -> limit 0.25.
-    if (isDead &&
-        deadFront &&
-        minTorsoRatio < 90 &&
-        minTorsoRatio > e.limit('frontHingeMax', 0.25)) {
-      repLabel = 'Squat - not a deadlift';
-      repLevel = FormLevel.bad;
-      repDetail = 'Hinge at the hips';
-      repLabelTime = t;
-      return;
-    }
-    // deadlift only: faults that make the rep not count (knees caving in, stance too narrow).
-    // Both are only measured facing the camera, so nothing is rejected from the side.
-    if (isDead) {
-      for (final f in deadFaultRejects) {
-        if (repFaults.contains(f)) {
-          repLabel = 'Rejected';
-          repLevel = FormLevel.bad;
-          repDetail = f;
-          repLabelTime = t;
-          return;
-        }
-      }
-    }
     // bench only: elbows flared out to the sides = shoulder joint at risk, do not count.
     // This uses the worst angle of the whole rep (see _checkFlare), so the warning fading
     // on the way up cannot sneak a flared rep into the count; a flare that only showed up
@@ -876,7 +841,6 @@ class RepCounter {
     lastConsistency = null;
     repDurations.clear();
     squatLike = false;
-    minTorsoRatio = 99;
     minKnee = 999;
     lyingSince = null;
     uprightFor = 0;
@@ -1101,15 +1065,7 @@ class RepCounter {
     lastEval = ev;
 
     // ---- rep state machine (the bloc stops sending frames while the rest timer runs) ----
-    final reachPer = _stepRep(
-      e,
-      t,
-      per,
-      perRaw,
-      smoothed,
-      gateOk,
-      armDown: armDown,
-    );
+    final reachPer = _stepRep(e, t, per, perRaw, smoothed, gateOk, armDown: armDown);
     score.update(
       ev,
       t,
@@ -1201,8 +1157,7 @@ class RepCounter {
     for (final arm in [e.right, if (e.left != null) e.left!]) {
       final s = g.point(arm[0]), el = g.point(arm[1]);
       if (s == null || el == null) continue;
-      if (el.dy <= s.dy ||
-          PoseGeometry.fromVertical(s, el) > e.limit('armDownMax', 35)) {
+      if (el.dy <= s.dy || PoseGeometry.fromVertical(s, el) > e.limit('armDownMax', 35)) {
         return false;
       }
     }
@@ -1223,29 +1178,6 @@ class RepCounter {
     }
     final rdl = e.variant == 'romanian', sumo = e.variant == 'sumo';
     if (deadFront) {
-      // facing the camera the torso is the hinge signal: in a deadlift it foreshortens a lot
-      // (the chest goes toward the lens), in a squat it stays long. Torso length (shoulder
-      // midpoint to hip midpoint) in shoulder widths, as a fraction of the lifter's own
-      // standing value (learned while idle, frozen during a rep). The smallest value of the
-      // rep is judged in _finishRep.
-      final sa = g.point(11),
-          sb = g.point(12),
-          ha = g.point(23),
-          hb = g.point(24);
-      if (sa != null && sb != null && ha != null && hb != null) {
-        final sw = (sa - sb).distance;
-        if (sw > 1) {
-          final torso = ((sa + sb) / 2 - (ha + hb) / 2).distance / sw;
-          final stand = baseline.standing(
-            'frontTorso',
-            torso,
-            dir == 0 && !attempt,
-          );
-          if (attempt && stand > 0) {
-            minTorsoRatio = math.min(minTorsoRatio, torso / stand);
-          }
-        }
-      }
       // facing the camera knee angles are useless (the knees bend toward the lens),
       // so a squat is detected by the hips dropping: hip-to-ankle height shrinks.
       // It keeps running, but only for the debug view: bent over facing the camera the hip
@@ -1314,7 +1246,6 @@ class RepCounter {
       repFaults.clear();
       curlBlockSince.clear();
       squatLike = false;
-      minTorsoRatio = 99;
       frontSquatDbg = false;
       minKnee = 999;
       benchFlare = 0;
@@ -1515,10 +1446,6 @@ class RepCounter {
       dbg.add(
         'view ${deadFront ? 'FRONT' : 'side'}  '
         'bottom at per ${reachPer.round()}  leg drop ${legDropDbg.toStringAsFixed(2)}',
-      );
-      dbg.add(
-        'front torso ratio ${minTorsoRatio < 90 ? minTorsoRatio.toStringAsFixed(2) : '-'}  '
-        '(rejected as squat above ${e.limit('frontHingeMax', 0.25).toStringAsFixed(2)})',
       );
     }
   }
