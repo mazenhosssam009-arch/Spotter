@@ -22,6 +22,18 @@ class PostureBaseline {
     return b;
   }
 
+  /// like [follow], but follows the start posture faster while idle (curl swing checks):
+  /// a stale start posture (arm just swapped in alternate mode) is forgotten within a second
+  double quickFollow(String key, double v, bool idle) {
+    final b = _values[key];
+    if (b == null) {
+      _values[key] = v;
+      return v;
+    }
+    if (idle) return _values[key] = 0.85 * b + 0.15 * v;
+    return b;
+  }
+
   /// like [follow], but only follows while idle AND near the upright value, so a slow
   /// start of the lift cannot drag the "standing" reference down with it
   double standing(String key, double v, bool idle) {

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:ai_trainer/core/theme/spotter_theme.dart';
 import 'package:ai_trainer/core/widgets/spot_widgets.dart';

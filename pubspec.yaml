@@ -51,6 +51,9 @@ dependencies:
   just_audio: ^0.10.6
   path_provider: ^2.1.6
 
+  material_ui: any
+  flutter_localizations:
+    sdk: flutter
 dev_dependencies:
   flutter_test:
     sdk: flutter

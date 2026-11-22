@@ -6,6 +6,7 @@ import 'package:ai_trainer/features/pose_coaching/domain/entities/form_evaluatio
 class WarningTracker {
   static const delay = 0.25; // a problem must last this long to be shown
   static const hold = 0.6; // and stays this long after it is gone
+  static const gap = 0.3; // a pause longer than this restarts the [delay] timer
 
   final _first = <String, double>{};
   final _last = <String, double>{};
@@ -22,7 +23,11 @@ class WarningTracker {
 
   void update(FormEvaluation ev, double t) {
     for (final m in ev.warns) {
-      _first.putIfAbsent(m, () => t);
+      // The [delay] timer must run on a CONTINUOUS problem. Counting from the first frame
+      // to the last, a noisy check that fires one frame every half second showed up as if
+      // it had lasted. (A warning that is already shown keeps its timer: [hold] covers it.)
+      final prev = _last[m];
+      if (prev == null || (t - prev > gap && !shown.contains(m))) _first[m] = t;
       _last[m] = t;
     }
     for (final m in ev.blocking) {

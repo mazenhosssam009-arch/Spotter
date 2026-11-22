@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:ai_trainer/core/constants.dart';
 import 'package:ai_trainer/core/widgets/overlay_canvas.dart';

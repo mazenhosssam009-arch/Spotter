@@ -1,5 +1,6 @@
 {
-  "dart.flutterSdkPath": "C:\\dev\\flutter",
-  "dart.sdkPath": "C:\\dev\\flutter\\bin\\cache\\dart-sdk",
+  // the Dart SDK comes from the Flutter SDK below; a separate dart.sdkPath here
+  // pointed at C:\dev\flutter (which no longer exists) and broke the debugger
+  "dart.flutterSdkPath": "C:\\src\\flutter",
   "java.configuration.updateBuildConfiguration": "interactive"
 }

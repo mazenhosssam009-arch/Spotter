@@ -4,7 +4,7 @@
 /// [limits] overrides any form threshold by key (all optional, defaults live
 /// where each key is read). Keys: elbowDrift 25, swing 12, shrug 0.12, twist 0.2,
 /// torsoLean 60, deepAngle 95, kneeCave 0.15, stanceMin 0.6, stanceMax 2.0,
-/// kneeMin, kneeMax, spineDrift 25, flareMax 85, flareMin 25, forearmTilt 25,
+/// kneeMin, kneeMax, spineDrift 25, flareMax 80, flareMin 30, forearmTilt 25,
 /// wristMin 145, barTilt 0.25, asym 25, frontalRatio 0.5, maxSpeed, countFaulty 0,
 /// squatRatio (deadlift, side view: knee bend / hip hinge above this = squat,
 /// default 1.2, sumo 1.8, romanian 0.9), squatKnee (deadlift: knee angle below
@@ -12,8 +12,9 @@
 /// (deadlift facing the camera: hip-to-ankle height lost, default 0.38, sumo 0.50,
 /// romanian 0.25), frontDead 10 and frontGain 1.5 (deadlift facing the camera),
 /// swingReject 20 and elbowDriftReject 30 (curl: degrees PAST the warning limit
-/// before a rep is rejected), lyingTilt 35 and lyingRatio 0.9 (bench: how
-/// horizontal the torso must be).
+/// before a rep is rejected), lyingTilt 30 and lyingRatio 1.0 (bench: how
+/// horizontal the torso must be), flareReject 100 (bench: elbow flare at the
+/// shoulder past which the rep is NOT counted).
 /// armShorten 0.25 (curl facing the camera: how much the upper arm may look
 /// shorter before "Elbow drifting forward"), smoothBase 1.5 and smoothSpan 2.0
 /// (rep smoothness score calibration).
@@ -26,7 +27,9 @@
 /// bottom), handReach 0.40 and handDead 0.12 (how far the hands must travel down,
 /// as a fraction of leg length), kneeCave 0.30.
 /// Deadlift side view: sideReach 90 (percent of the bar that counts as the bottom).
-/// Bench: descentMax 160 (deg/s, faster = "lower slowly"), hipLift 12 (degrees).
+/// Bench: descentMax 160 (deg/s, faster = "lower slowly"), hipLift 12 (degrees),
+/// flareMax 80 (elbow flare at the shoulder that already warns), flareReject 100
+/// (elbow flare past which the rep is not counted; needs the head/foot view).
 /// Defaults are commonly cited coaching/biomechanics ranges, not
 /// clinical limits: tune them to your users. Pose estimation is 2D and
 /// approximate; it can help you notice form problems but it cannot guarantee

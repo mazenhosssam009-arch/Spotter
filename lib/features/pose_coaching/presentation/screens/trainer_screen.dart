@@ -1,10 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
-
 import 'package:ai_trainer/core/theme/spotter_theme.dart';
 import 'package:ai_trainer/core/utils/cv_math.dart';
 import 'package:ai_trainer/core/widgets/camera_view.dart';
@@ -25,6 +20,10 @@ import 'package:ai_trainer/features/voice_coach/domain/entities/voice_settings.d
 import 'package:ai_trainer/features/voice_coach/presentation/voice_coach.dart';
 import 'package:ai_trainer/features/voice_coach/presentation/widgets/voice_quick_sheet.dart';
 import 'package:ai_trainer/injection_container.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 /// AiTrainer.py / SquatTrainer.py / DeadliftTrainer.py / BenchPressTrainer.py
 class TrainerScreen extends StatelessWidget {
@@ -54,7 +53,8 @@ class _TrainerView extends StatefulWidget {
   State<_TrainerView> createState() => _TrainerViewState();
 }
 
-class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver {
+class _TrainerViewState extends State<_TrainerView>
+    with WidgetsBindingObserver {
   TrainerBloc get _bloc => context.read<TrainerBloc>();
 
   // the voice coach of this workout (form warnings, reps, rest...) and its voice commands
@@ -98,7 +98,8 @@ class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver 
           _bloc.add(NextSetStarted());
         }
       case VoiceCommand.moreTime:
-        if (dialog != null && s.extraUsed < TrainerBloc.maxExtensions) Navigator.pop(dialog, true);
+        if (dialog != null && s.extraUsed < TrainerBloc.maxExtensions)
+          Navigator.pop(dialog, true);
       case VoiceCommand.stopTimer:
         if (s.resting && !s.restFinished) _bloc.add(RestStopped());
       case VoiceCommand.plusRep:
@@ -120,7 +121,8 @@ class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver 
 
   void _beep(TrainerState state) {
     // the voice coach says "3, 2, 1" itself: only vibrate then
-    if (!(state.getReady && _coach.speaksCountdown)) SystemSound.play(SystemSoundType.click);
+    if (!(state.getReady && _coach.speaksCountdown))
+      SystemSound.play(SystemSoundType.click);
     HapticFeedback.selectionClick();
   }
 
@@ -128,7 +130,8 @@ class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver 
   Future<void> _ringAlert() async {
     for (var i = 0; i < 3; i++) {
       // the voice coach announces it: one alert sound is enough, so they don't overlap
-      if (i == 0 || !_coach.speaksCountdown) SystemSound.play(SystemSoundType.alert);
+      if (i == 0 || !_coach.speaksCountdown)
+        SystemSound.play(SystemSoundType.alert);
       HapticFeedback.vibrate();
       await Future.delayed(const Duration(milliseconds: 450));
       if (!mounted) return;
@@ -136,8 +139,9 @@ class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver 
   }
 
   void _needARep() {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Do at least one counted rep first')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Do at least one counted rep first')),
+    );
   }
 
   /// Finish button: ends the set and opens the rest screen
@@ -151,7 +155,11 @@ class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver 
 
   Future<void> _restSettings() async {
     final s = _bloc.state;
-    final res = await showRestTimerDialog(context, restSeconds: s.restSeconds, resting: s.resting);
+    final res = await showRestTimerDialog(
+      context,
+      restSeconds: s.restSeconds,
+      resting: s.resting,
+    );
     if (!mounted || res == null) return;
     final now = _bloc.state;
     if (res.startRest && !now.paused && (now.counter?.setReps ?? 0) == 0) {
@@ -176,15 +184,24 @@ class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver 
           canPop: false,
           child: SpotDialog(
             title: 'Rest finished',
-            content: Text(left > 0
-                ? 'Ready for set ${setNumber + 1}? You can add more time ($left left).'
-                : 'Ready for set ${setNumber + 1}? No more extra time.'),
+            content: Text(
+              left > 0
+                  ? 'Ready for set ${setNumber + 1}? You can add more time ($left left).'
+                  : 'Ready for set ${setNumber + 1}? No more extra time.',
+            ),
             actions: [
-              SpotButton('Next set ${setNumber + 1}',
-                  icon: Icons.play_arrow, onPressed: () => Navigator.pop(c, false)),
+              SpotButton(
+                'Next set ${setNumber + 1}',
+                icon: Icons.play_arrow,
+                onPressed: () => Navigator.pop(c, false),
+              ),
               if (left > 0)
-                SpotButton('More time +${mmss(state.restSeconds)} · $left left',
-                    icon: Icons.add, kind: SpotKind.secondary, onPressed: () => Navigator.pop(c, true)),
+                SpotButton(
+                  'More time +${mmss(state.restSeconds)} · $left left',
+                  icon: Icons.add,
+                  kind: SpotKind.secondary,
+                  onPressed: () => Navigator.pop(c, true),
+                ),
             ],
           ),
         );
@@ -207,10 +224,16 @@ class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver 
       context: context,
       builder: (c) => SpotDialog(
         title: 'Leave the workout?',
-        content: Text('Your ${count.toInt()} reps are not saved and will be lost.'),
+        content: Text(
+          'Your ${count.toInt()} reps are not saved and will be lost.',
+        ),
         actions: [
           SpotButton('Stay', onPressed: () => Navigator.pop(c, false)),
-          SpotButton('Leave', kind: SpotKind.destructive, onPressed: () => Navigator.pop(c, true)),
+          SpotButton(
+            'Leave',
+            kind: SpotKind.destructive,
+            onPressed: () => Navigator.pop(c, true),
+          ),
         ],
       ),
     );
@@ -218,26 +241,38 @@ class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver 
   }
 
   /// top bar button: dark fill + mint border + mint icon/label, visible on any background
-  Widget _pill(IconData icon, String label, String tip, VoidCallback onTap) => Tooltip(
+  Widget _pill(IconData icon, String label, String tip, VoidCallback onTap) =>
+      Tooltip(
         message: tip,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Material(
             color: Sp.card,
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(Sp.rChip), side: const BorderSide(color: Sp.mint)),
+              borderRadius: BorderRadius.circular(Sp.rChip),
+              side: const BorderSide(color: Sp.mint),
+            ),
             child: InkWell(
               onTap: onTap,
               borderRadius: BorderRadius.circular(Sp.rChip),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(icon, size: 18, color: Sp.mint),
-                  if (label.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    Text(label.toUpperCase(), style: Sp.labelMd.copyWith(color: Sp.mint)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 18, color: Sp.mint),
+                    if (label.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        label.toUpperCase(),
+                        style: Sp.labelMd.copyWith(color: Sp.mint),
+                      ),
+                    ],
                   ],
-                ]),
+                ),
               ),
             ),
           ),
@@ -246,10 +281,13 @@ class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver 
 
   /// app bar buttons; each one redraws itself when the bloc changes
   List<Widget> _actions() {
-    Widget watch(Widget Function(RepCounter c) build) => BlocBuilder<TrainerBloc, TrainerState>(
-          buildWhen: (a, b) => a.panelVersion != b.panelVersion || a.counter != b.counter,
-          builder: (context, state) =>
-              state.counter == null ? const SizedBox.shrink() : build(state.counter!),
+    Widget watch(Widget Function(RepCounter c) build) =>
+        BlocBuilder<TrainerBloc, TrainerState>(
+          buildWhen: (a, b) =>
+              a.panelVersion != b.panelVersion || a.counter != b.counter,
+          builder: (context, state) => state.counter == null
+              ? const SizedBox.shrink()
+              : build(state.counter!),
         );
     return [
       // voice coach: tap = mute / language / settings
@@ -262,41 +300,69 @@ class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver 
           () => showVoiceQuickSheet(context, _coach),
         ),
       ),
-      _pill(Icons.timer_outlined, '', 'Rest timer', _restSettings), // icon only: the bar fits a phone
-      _pill(Icons.school_outlined, '', 'How to do this exercise', () => showExerciseGuide(context, widget.exercise)),
+      _pill(
+        Icons.timer_outlined,
+        '',
+        'Rest timer',
+        _restSettings,
+      ), // icon only: the bar fits a phone
+      _pill(
+        Icons.school_outlined,
+        '',
+        'How to do this exercise',
+        () => showExerciseGuide(context, widget.exercise),
+      ),
       if (widget.exercise.name.contains('Bench'))
-        watch((c) => IconButton(
-              tooltip: c.lyingCheck ? 'Lying check ON (tap to turn off)' : 'Lying check OFF',
-              icon: Icon(c.lyingCheck ? Icons.bed : Icons.bed_outlined),
-              color: c.lyingCheck ? Sp.mint : Sp.outline,
-              onPressed: () => _bloc.add(LyingCheckToggled()),
-            )),
-      if (widget.exercise.name.contains('Curl'))
-        watch((c) => PopupMenuButton<int>(
-          tooltip: 'Arms',
-          initialValue: c.armMode,
-          onSelected: (m) => _bloc.add(ArmModeChanged(armMode: m)),
-          itemBuilder: (_) => const [
-            PopupMenuItem(value: 0, child: Text('Right arm')),
-            PopupMenuItem(value: 1, child: Text('Left arm')),
-            PopupMenuItem(value: 2, child: Text('Both arms')),
-            PopupMenuItem(value: 3, child: Text('Alternate: right, left, right...')),
-            PopupMenuItem(value: 4, child: Text('Alternate: left, right, left...')),
-          ],
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 8),
-            padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
-            decoration: BoxDecoration(
-              color: Sp.card,
-              borderRadius: BorderRadius.circular(Sp.rChip),
-              border: Border.all(color: Sp.line),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text(armShort[c.armMode].toUpperCase(), style: Sp.labelMd.copyWith(color: Sp.white)),
-              const Icon(Icons.arrow_drop_down, size: 20),
-            ]),
+        watch(
+          (c) => IconButton(
+            tooltip: c.lyingCheck
+                ? 'Lying check ON (tap to turn off)'
+                : 'Lying check OFF',
+            icon: Icon(c.lyingCheck ? Icons.bed : Icons.bed_outlined),
+            color: c.lyingCheck ? Sp.mint : Sp.outline,
+            onPressed: () => _bloc.add(LyingCheckToggled()),
           ),
-        )),
+        ),
+      if (widget.exercise.name.contains('Curl'))
+        watch(
+          (c) => PopupMenuButton<int>(
+            tooltip: 'Arms',
+            initialValue: c.armMode,
+            onSelected: (m) => _bloc.add(ArmModeChanged(armMode: m)),
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 0, child: Text('Right arm')),
+              PopupMenuItem(value: 1, child: Text('Left arm')),
+              PopupMenuItem(value: 2, child: Text('Both arms')),
+              PopupMenuItem(
+                value: 3,
+                child: Text('Alternate: right, left, right...'),
+              ),
+              PopupMenuItem(
+                value: 4,
+                child: Text('Alternate: left, right, left...'),
+              ),
+            ],
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 8),
+              padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
+              decoration: BoxDecoration(
+                color: Sp.card,
+                borderRadius: BorderRadius.circular(Sp.rChip),
+                border: Border.all(color: Sp.line),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    armShort[c.armMode].toUpperCase(),
+                    style: Sp.labelMd.copyWith(color: Sp.white),
+                  ),
+                  const Icon(Icons.arrow_drop_down, size: 20),
+                ],
+              ),
+            ),
+          ),
+        ),
     ];
   }
 
@@ -320,36 +386,52 @@ class _TrainerViewState extends State<_TrainerView> with WidgetsBindingObserver 
         },
         child: Material(
           color: Sp.canvas,
-          child: Stack(children: [
-            Positioned.fill(
-              child: Column(children: [
-                Expanded(
-                  child: Stack(fit: StackFit.expand, children: [
-                    CameraView(
-                      title: widget.exercise.name,
-                      onFrame: (frame) => _bloc.add(TrainerFrameReceived(frame: frame)),
-                      actions: _actions(),
-                      overlay: BlocBuilder<TrainerBloc, TrainerState>(
-                        buildWhen: (a, b) => a.frameNumber != b.frameNumber || a.phase != b.phase,
-                        builder: (context, state) => CustomPaint(painter: OverlayPainter(trainerOverlay(state))),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          CameraView(
+                            title: widget.exercise.name,
+                            onFrame: (frame) =>
+                                _bloc.add(TrainerFrameReceived(frame: frame)),
+                            actions: _actions(),
+                            overlay: BlocBuilder<TrainerBloc, TrainerState>(
+                              buildWhen: (a, b) =>
+                                  a.frameNumber != b.frameNumber ||
+                                  a.phase != b.phase,
+                              builder: (context, state) => CustomPaint(
+                                painter: OverlayPainter(trainerOverlay(state)),
+                              ),
+                            ),
+                          ),
+                          const DepthBar(),
+                        ],
                       ),
                     ),
-                    const DepthBar(),
-                  ]),
+                    TrainerPanel(onFinishSet: _finishSet),
+                  ],
                 ),
-                TrainerPanel(onFinishSet: _finishSet),
-              ]),
-            ),
-            // rest screen / 3-2-1 countdown on top of everything
-            Positioned.fill(
-              child: BlocBuilder<TrainerBloc, TrainerState>(
-                buildWhen: (a, b) => a.phase != b.phase || a.tick != b.tick || a.extraUsed != b.extraUsed,
-                builder: (context, state) => state.paused && state.counter != null
-                    ? RestOverlay(state: state, onEditTime: _restSettings)
-                    : const SizedBox.shrink(),
               ),
-            ),
-          ]),
+              // rest screen / 3-2-1 countdown on top of everything
+              Positioned.fill(
+                child: BlocBuilder<TrainerBloc, TrainerState>(
+                  buildWhen: (a, b) =>
+                      a.phase != b.phase ||
+                      a.tick != b.tick ||
+                      a.extraUsed != b.extraUsed,
+                  builder: (context, state) =>
+                      state.paused && state.counter != null
+                      ? RestOverlay(state: state, onEditTime: _restSettings)
+                      : const SizedBox.shrink(),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
