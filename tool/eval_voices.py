@@ -58,7 +58,7 @@ def cer(heard, line):
 
 
 def spoken_lines(voice):
-    """what each clip was ASKED to say (the corrected wording, e.g. عدات, براحة اهدا), when known"""
+    """what each clip was ASKED to say (the corrected wording, e.g. عدات, براحة متستعجلش), when known"""
     import json
 
     for name in ("recorded_elevenlabs.json", "recorded_gemini.json", "recorded_namaa.json", "recorded.json"):

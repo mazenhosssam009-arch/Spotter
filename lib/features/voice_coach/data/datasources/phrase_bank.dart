@@ -118,7 +118,7 @@ class PhraseBank {
     CoachCue.kneesCaving: (
       'Push your knees out',
       'مَتِخَلّيش رُكْبِتَك تِدْخُل لِجُوَّه',
-      'مَتِخَلّيش رُكْبِتِك تِدْخُل لِجُوَّه',
+      'مَتْخَلّيش رُكْبِتِك تِدْخُل لِجُوَّه',
     ),
     CoachCue.chestUp: ('Chest up', 'اِرْفَع صِدْرَك', 'اِرْفَعي صِدْرِك'),
     CoachCue.lowerSlowly: ('Lower slowly, control the bar', 'نَزِّل البار بِهُدوء', 'نَزِّلي البار بِهُدوء'),
@@ -126,7 +126,7 @@ class PhraseBank {
     CoachCue.slowDown: (
       'Slow down, control it',
       'بِهُدوء، مَتِسْتَعْجِلْش في الحَرَكَة',
-      'بِهُدوء، مَتِسْتَعْجِليش في الحَرَكَة',
+      'بِرّاحَة، مَتِسْتَعْجِليش',
     ),
     CoachCue.wristBent: ('Straighten your wrists', 'خَلّي إيدَك مَفْرودَة', 'خَلّي إيدِك مَفْرودَة'),
     CoachCue.stackWrist: ('Wrists over elbows', 'خَلّي إيدَك فوق كوعَك', 'خَلّي إيدِك فوق كوعِك'),
@@ -145,7 +145,7 @@ class PhraseBank {
     CoachCue.barUneven: (
       'The bar is uneven, push both sides equally',
       'البار مايِل، اِدْفَع بِإيدَيْك الاِتْنَيْن زَيّ بَعْض',
-      'البار مايِل، اِدْفَعي بِإيدَيْكي الاِتْنَيْن زَيّ بَعْض',
+      'البار مِش مَظْبوط، خَلّي إيدِك الاِتْنين مَفْرودين زَيّ بَعْض',
     ),
     CoachCue.unevenSides: (
       'Work both sides evenly',
@@ -165,9 +165,9 @@ class PhraseBank {
     CoachCue.leaning: (
       "Don't lean, keep your body still",
       'مَتِميلْش بِجِسْمَك، خَلّيك ثابِت',
-      'مَتِميليش بِجِسْمِك، خَلّيكي ثابْتَة',
+      'مَتْمِليش بِجِسْمِك، خَلّيكي ثابْتَة',
     ),
-    CoachCue.shrugging: ('Relax your shoulders down', 'مَتِحَرَّكْش بِكِتافَك', 'مَتِحَرَّكيش كِتافِك'),
+    CoachCue.shrugging: ('Relax your shoulders down', 'مَتِحَرَّكْش بِكِتافَك', 'مَتْحَرَّكيش كِتافِك'),
     CoachCue.kneesTooStraight: (
       'Soften your knees a little',
       'اِتْني رُكْبِتَك سِنَّة صُغَيَّرَة',
@@ -238,9 +238,9 @@ class PhraseBank {
     if (_ar) {
       if (repeat) {
         return switch (_p) {
-          CoachPersonality.calm => 'اِفْتِكِر، $t',
+          CoachPersonality.calm => '${_y('اِفْتِكِر', 'اِفْتَكْري')}، $t',
           CoachPersonality.hype => 'يَلّا يا ${_y('بَطَل', 'بَطَلَة')}، $t!',
-          CoachPersonality.strict => 'قُلْتِلَك، $t!',
+          CoachPersonality.strict => '${_y('قُلْتِلَك', 'قُلْتِلِك')}، $t!',
           CoachPersonality.minimal => t,
         };
       }
@@ -425,7 +425,7 @@ class PhraseBank {
   String restOver(int nextSet, {required bool commands}) {
     if (_ar) {
       final t = 'الراحَة خِلْصِت، ${_y('جاهِز', 'جاهْزَة')} $_toTheSet $_nextOne؟';
-      return commands ? '$t$_s1${_y('قول', 'قولي')} يَلّا، أَو وَقْت زِيادَة' : t;
+      return commands ? '$t$_s1${_y('قول يَلّا، أَو وَقْت زِيادَة', 'قولي جاهْزَة، وَلّا عايْزَة وَقْت زِيادَة؟')}' : t;
     }
     final t = 'Rest is over. Ready for set $nextSet?';
     return commands ? '$t Say next, or more time.' : t;
