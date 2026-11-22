@@ -15,18 +15,24 @@ class DeadliftFormCheck extends FormCheck {
     // spine proxy: ear-shoulder-hip compared with the lifter's own upright posture.
     // It cannot see the lumbar spine, so it only warns and never rejects a rep.
     var spineSeen = deadFront; // facing the camera: spine angle cannot be seen
-    for (final s in deadFront
-        ? const <List<int>>[]
-        : const [
-            [8, 12, 24],
-            [7, 11, 23]
-          ]) {
+    for (final s
+        in deadFront
+            ? const <List<int>>[]
+            : const [
+                [8, 12, 24],
+                [7, 11, 23],
+              ]) {
       if (!g.visible(s)) continue;
       final a = g.point(s[0]), b = g.point(s[1]), c = g.point(s[2]);
       if (a == null || b == null || c == null) continue;
       final ang = PoseGeometry.angle(a, b, c);
       if (!ang.isFinite) continue;
-      ev.limit((i.baseline.follow('neck', ang, i.idle) - ang) - e.limit('spineDrift', 25), 15, 'Keep spine neutral');
+      ev.limit(
+        (i.baseline.follow('neck', ang, i.idle) - ang) -
+            e.limit('spineDrift', 25),
+        15,
+        'Keep spine neutral',
+      );
       spineSeen = true;
       break;
     }
@@ -41,7 +47,7 @@ class DeadliftFormCheck extends FormCheck {
     final ks = <double>[];
     for (final s in const [
       [24, 26, 28],
-      [23, 25, 27]
+      [23, 25, 27],
     ]) {
       if (!g.visible(s)) continue;
       final a = g.point(s[0]), b = g.point(s[1]), c = g.point(s[2]);
@@ -55,10 +61,20 @@ class DeadliftFormCheck extends FormCheck {
       ev.limit(low ? knee - kHi : -1, 25, 'Knees too straight');
     }
     // conventional stance is about hip width (narrower than the shoulders), so 0.4 not 0.6.
-    // Knee cave is a squat fault: here it only warns and with a looser limit (toe-out feet
-    // made it fire on normal reps and paint the bar red).
+    // Facing the camera, knees caving in and a too narrow stance now REJECT the rep: the
+    // RepCounter checks them in _finishRep (RepCounter.deadFaultRejects). blockAt 0.0 = the
+    // rep is rejected as soon as the warning limit is passed.
     if (i.front == true) {
-      FormCheck.frontChecks(ev, i, sumo ? 1.4 : 0.4, sumo ? 3.0 : 1.6, caveLim: 0.30, blockCave: false);
+      FormCheck.frontChecks(
+        ev,
+        i,
+        sumo ? 1.4 : 0.4,
+        sumo ? 3.0 : 1.6,
+        caveLim: 0.30,
+        blockCave: true,
+        caveBlockAt: 0.0,
+        blockStance: true,
+      );
     }
     ev.assessable = ev.scores.isNotEmpty;
     return ev;
