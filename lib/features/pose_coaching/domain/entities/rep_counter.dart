@@ -13,6 +13,7 @@ import 'package:ai_trainer/features/pose_coaching/domain/entities/pose_frame.dar
 import 'package:ai_trainer/features/pose_coaching/domain/entities/pose_geometry.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/posture_baseline.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/set_tracker.dart';
+import 'package:ai_trainer/features/pose_coaching/domain/entities/vec2.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/warning_tracker.dart';
 
 /// The trainer logic of AiTrainer.py, SquatTrainer.py, DeadliftTrainer.py and
@@ -125,6 +126,52 @@ class RepCounter {
   double benchFlare = 0, benchFlareNow = 0;
   double? flareOverSince;
   bool benchFlared = false;
+  // ---- bench: is the phone at the HEAD end (not the foot end)? ----
+  // End-on, the flare is read without depth, so perspective biases it: from the head end the
+  // elbows at the bottom are farther from the lens than the shoulders and read LOW, from the
+  // foot end they are closer and read HIGH and out of order (3D test: true 75 -> 90, true
+  // 95 -> 77), so no limit can judge a rep there. The calibrated limits ('...Head' keys,
+  // incl. the tuck rejection) are only used once the head end is sure; elsewhere the old
+  // lenient limits stay. Head end: the hips are deeper than the shoulders AND look narrower
+  // than at the foot end (3D test: hip/shoulder width 0.61 vs 0.87-0.91).
+  double headEndScore = 0;
+  bool benchHeadEnd = false;
+  /// the limit key for the flare / tuck limits in this view
+  String flareKey(String key) => benchHeadEnd ? '${key}Head' : key;
+  // ---- bench: elbows pinned to the ribs ("very tucked", see _checkFlare) ----
+  double? tuckUnderSince;
+  bool benchTucked = false;
+  // average flare over the bottom of the rep (>= 70% depth), where it is clearly seen. The
+  // result is decided on this average: a single reading wanders a few degrees around a
+  // limit (a 95 deg flare reads 84-88), so "must stay past the limit" flipped the same rep
+  // between rejected and counted.
+  double flareBottomSum = 0;
+  int flareBottomN = 0;
+  // the same over the bottom HALF: pinned elbows hide the depth from the head/foot end, so a
+  // very tucked rep may never reach the 70% line; this still names the reason
+  double flareHalfSum = 0;
+  int flareHalfN = 0;
+  // ---- bench: the BAR must come down to the chest, not only the elbow angle ----
+  // The elbow angle at the chest changes with the grip width (narrow grips bend the elbow
+  // more), so the angle alone can call a rep "at the chest" while the bar is still well
+  // above it. Partial reps are defined by the bar distance from the chest / lockout
+  // (Massey et al. 2004), so the wrist height above the shoulders is checked too, as a
+  // fraction of the user's own lockout height. Only where up in the picture is up in the
+  // room (side, or head/foot end at bench height).
+  double barTop = 0; // lockout: highest the wrists have been above the shoulders (px)
+  double barMinRatio = 9; // lowest wrist height of this rep / barTop (9 = not judged)
+  // ---- bench: a shoulder (overhead) press is not a bench press, lying check on or off ----
+  // A bench press pushes the bar away from the chest, across the body axis; an overhead
+  // press pushes it past the head, ALONG the body axis. The furthest the wrists went past
+  // the shoulders toward the head, in torso lengths (measured: bench -0.32..0.09 in every
+  // view, overhead press 0.51..1.14).
+  double overheadMax = -9;
+  // ---- bench: the phone looks down on the bench from above ----
+  // From above, the arm moves toward the lens: the elbow angle and the flare cannot be read
+  // (measured: elbow 159-180 deg instead of 85-180, flare jumping 0 -> 108), so counting is
+  // stopped with a clear message instead of counting / rejecting at random.
+  double? cameraAboveSince, cameraLevelSince;
+  bool cameraAbove = false;
 
   // ---- bench: the forearms must point UP (wrist above the elbow, and above the shoulder at
   // lockout). Rotating the shoulder down so the forearm points forward is not a press. ----
@@ -218,7 +265,10 @@ class RepCounter {
   // or after a bad rep that ended with the arm a little bent). Hanging still for this long, in
   // the top part of the range, ends the rep there and the arm's own resting angle is learned.
   static const curlSettleSeconds = 0.5;
-  static const curlSettlePer = 30.0; // % of the range: only near the top
+  // % of the range: only near the top. The top is already the user's own relaxed arm (curlRef),
+  // so 30 let a rep end ~20 deg short of it and top-half reps counted (a full rep returns to a
+  // near-straight arm: Pinto et al. 2012)
+  static const curlSettlePer = 15.0;
   static const curlSettleSpeed =
       25.0; // deg/s: a real curl is much faster than this
   // Continuous reps never hang still. After the bottom the arm extends, and when it turns back
@@ -565,12 +615,140 @@ class RepCounter {
         : s + (1 - math.exp(-dt / flareTau)) * (raw - s);
     benchFlareNow = flareSmooth!;
     benchFlare = math.max(benchFlare, benchFlareNow);
+    if (per >= 70) {
+      flareBottomSum += benchFlareNow;
+      flareBottomN++;
+    }
+    flareHalfSum += benchFlareNow; // _checkFlare only reads the flare from 50% depth on
+    flareHalfN++;
     // only a flare that LASTS rejects
-    if (benchFlareNow >= e.limit('flareReject', 100)) {
+    if (benchFlareNow >= e.limit(flareKey('flareReject'), 100)) {
       flareOverSince ??= t;
       if (t - flareOverSince! >= flareRejectHold) benchFlared = true;
     } else {
       flareOverSince = null;
+    }
+    // elbows pinned to the ribs: the same smoothed flare, the same "must last" rule (head
+    // end only: the other views over-read a tucked arm)
+    if (benchHeadEnd && benchFlareNow <= e.limit('tuckRejectHead', 0)) {
+      tuckUnderSince ??= t;
+      if (t - tuckUnderSince! >= flareRejectHold) benchTucked = true;
+    } else {
+      tuckUnderSince = null;
+    }
+  }
+
+  /// bench: the bar height (see [barTop]) and the overhead-press check (see [overheadMax])
+  void _checkBarAndOverhead(PoseGeometry g, Exercise e, bool? front, bool idle) {
+    // the clearer arm (from the side the far one is only guessed)
+    List<int>? arm;
+    var best = -1.0;
+    for (final a in [e.right, if (e.left != null) e.left!]) {
+      if (!g.visible([a[0], a[2]])) continue;
+      final c = g.confidence([a[0], a[2]]);
+      if (c > best) {
+        best = c;
+        arm = a;
+      }
+    }
+    if (arm == null) return;
+    final s = g.point(arm[0]), w = g.point(arm[2]);
+    if (s == null || w == null) return;
+    final squash = g.torsoSquash();
+    // up in the picture = up in the room: side view, or head/foot end at bench height
+    final level = front == false || (front == true && squash != null && squash < PoseGeometry.endOnSquash);
+    if (level) {
+      final h = s.dy - w.dy; // wrists above the shoulder (image y grows down)
+      if (h > barTop) {
+        barTop = h;
+      } else if (idle) {
+        barTop += 0.01 * (h - barTop); // a new session / camera: slowly forget an old lockout
+      }
+      if (attempt && barTop > 1) barMinRatio = math.min(barMinRatio, h / barTop);
+    }
+    // overhead press: wrists past the shoulders along the body axis (needs the torso seen,
+    // not end-on). The axis runs from the hips (or, lying with the hips hidden, away from
+    // the nose) to the shoulders.
+    if (attempt && squash != null && squash >= PoseGeometry.endOnSquash && g.visible([11, 12])) {
+      final a = g.point(11), b = g.point(12);
+      if (a == null || b == null) return;
+      final mid = (a + b) / 2;
+      Vec2? axis;
+      final hl = g.point(23), hr = g.point(24);
+      if (hl != null && hr != null && g.visible([23, 24])) {
+        axis = mid - (hl + hr) / 2;
+      } else if (g.point(0) != null && g.visible([0])) {
+        final n = g.point(0)! - mid;
+        axis = Vec2(2 * n.dx, 2 * n.dy);
+      }
+      if (axis == null) return;
+      final len2 = axis.dx * axis.dx + axis.dy * axis.dy;
+      if (len2 < 1) return;
+      final along = ((w - mid).dx * axis.dx + (w - mid).dy * axis.dy) / len2;
+      overheadMax = math.max(overheadMax, along);
+    }
+  }
+
+  /// bench: is the phone above the bench, looking down? The torso is then long in the picture
+  /// (not end-on as at the head/foot end, not sideways as from the side) and runs up/down it.
+  /// Straight above, the vertical forearm also points at the lens (short). Must last 1 s.
+  /// bench, end-on view: head end or foot end? (see [benchHeadEnd]) Slow, with hysteresis;
+  /// judged only while both hips and shoulders are seen, else the last answer stays.
+  void _checkHeadEnd(PoseGeometry g) {
+    final squash = g.torsoSquash();
+    if (squash == null || squash >= PoseGeometry.endOnSquash) return;
+    if (!g.visible([11, 12, 23, 24])) return;
+    final f = g.frame;
+    final sw = (f.landmark(11).x - f.landmark(12).x).abs();
+    if (sw < 1) return;
+    final hw = (f.landmark(23).x - f.landmark(24).x).abs();
+    final zd = ((f.landmark(23).z + f.landmark(24).z) - (f.landmark(11).z + f.landmark(12).z)) / 2 / sw;
+    final head = zd > 0.15 && hw / sw < 0.8;
+    headEndScore += 0.05 * ((head ? 1 : 0) - headEndScore);
+    if (headEndScore > 0.7) benchHeadEnd = true;
+    if (headEndScore < 0.3) benchHeadEnd = false;
+    baseline['benchHeadEnd'] = benchHeadEnd ? 1 : 0;
+  }
+
+  void _checkCameraAbove(PoseGeometry g, double t) {
+    final squash = g.torsoSquash();
+    final a = g.point(11), b = g.point(12), hl = g.point(23), hr = g.point(24);
+    var above = false;
+    if (squash != null && a != null && b != null && squash >= PoseGeometry.endOnSquash && squash < 3) {
+      final mid = (a + b) / 2;
+      Vec2? axis;
+      if (hl != null && hr != null && g.visible([23, 24])) {
+        axis = mid - (hl + hr) / 2;
+      } else if (g.point(0) != null && g.visible([0])) {
+        axis = g.point(0)! - mid;
+      }
+      if (axis != null && axis.distance > 1) {
+        // 0 = the torso runs straight up/down the picture, 90 = across it (lying, filmed from the side)
+        final across = math.acos((axis.dy.abs() / axis.distance).clamp(0.0, 1.0)) * 180 / math.pi;
+        if (across <= 40) {
+          // a lying body with its torso along the picture: the camera is above. A standing
+          // person looks the same, but holds the forearms in the picture plane (long); from
+          // straight above the vertical forearms point at the lens (short)
+          final hipsAbove = axis.dy > 0; // hips higher in the picture than the shoulders
+          var foreShort = false;
+          final sw = (a - b).distance;
+          for (final arm in const [[13, 15], [14, 16]]) {
+            final el = g.point(arm[0]), wr = g.point(arm[1]);
+            if (el == null || wr == null || !g.visible(arm)) continue;
+            if ((wr - el).distance / sw < 0.3) foreShort = true;
+          }
+          above = hipsAbove || foreShort;
+        }
+      }
+    }
+    if (above) {
+      cameraLevelSince = null;
+      cameraAboveSince ??= t;
+      if (t - cameraAboveSince! >= 1.0) cameraAbove = true;
+    } else {
+      cameraAboveSince = null;
+      cameraLevelSince ??= t;
+      if (t - cameraLevelSince! >= 1.0) cameraAbove = false;
     }
   }
 
@@ -705,8 +883,18 @@ class RepCounter {
 
   void _finishRep(Exercise e, double t) {
     final dur = t - repStartTime;
-    if (dur < minRepSeconds || t - lastRepTime <= 1)
+    if (dur < minRepSeconds || t - lastRepTime <= 1) {
+      // bench, elbows pinned to the ribs: from the head/foot end the elbow angle then only moves
+      // in the last part of the descent, so the rep looks too short and was dropped without a
+      // word. It is still not counted, but the reason is named.
+      if (isBench && flareHalfN >= 3 && flareHalfSum / flareHalfN <= e.limit('tuckReject', 0)) {
+        repLabel = 'Rejected';
+        repLevel = FormLevel.bad;
+        repDetail = 'Elbows tucked in';
+        repLabelTime = t;
+      }
       return; // jitter (same 1 s rule as before)
+    }
     // deadlift only: knees bent to squat depth = it was a squat, do not count
     if (isDead && squatLike) {
       repLabel = 'Squat - not a deadlift';
@@ -743,6 +931,12 @@ class RepCounter {
         }
       }
     }
+    // bench only: decide flare / tuck on the average over the bottom of the rep
+    if (isBench && flareBottomN >= 3) {
+      final mean = flareBottomSum / flareBottomN;
+      if (mean >= e.limit(flareKey('flareReject'), 100)) benchFlared = true;
+      if (benchHeadEnd && mean <= e.limit('tuckRejectHead', 0)) benchTucked = true;
+    }
     // bench only: elbows flared out to the sides = shoulder joint at risk, do not count.
     // This uses the worst angle of the whole rep (see _checkFlare), so the warning fading
     // on the way up cannot sneak a flared rep into the count; a flare that only showed up
@@ -752,6 +946,28 @@ class RepCounter {
       repLevel = FormLevel.bad;
       repDetail = 'Elbows flared wide';
       repLabelTime = t;
+      return;
+    }
+    // bench only: elbows pinned to the ribs the whole bottom of the rep
+    if (isBench && benchTucked) {
+      repLabel = 'Rejected';
+      repLevel = FormLevel.bad;
+      repDetail = 'Elbows tucked in';
+      repLabelTime = t;
+      return;
+    }
+    // bench only: the bar went past the head = an overhead (shoulder) press, not a bench
+    // press. Works with the lying check off too.
+    if (isBench && overheadMax > e.limit('overheadMax', 0.4)) {
+      repLabel = 'Rejected';
+      repLevel = FormLevel.bad;
+      repDetail = 'Shoulder press - lie on the bench';
+      repLabelTime = t;
+      return;
+    }
+    // bench only: the elbows bent enough, but the bar never came down near the chest
+    if (isBench && barMinRatio < 9 && barMinRatio > e.limit('barReach', 0.65)) {
+      _incompleteRep(e, t);
       return;
     }
     // bench only: the forearm was not pointing up for a good part of the rep (shoulder
@@ -915,6 +1131,14 @@ class RepCounter {
     benchFlareNow = 0;
     flareOverSince = null;
     benchFlared = false;
+    tuckUnderSince = null;
+    benchTucked = false;
+    barMinRatio = 9;
+    overheadMax = -9;
+    flareBottomSum = 0;
+    flareBottomN = 0;
+    flareHalfSum = 0;
+    flareHalfN = 0;
     flareSmooth = null;
     benchOffTime = 0;
     pressTiltNow = 0;
@@ -1095,7 +1319,11 @@ class RepCounter {
     // the side; with a fixed 160 such an arm never got back to the top and no rep was counted.
     if (isCurl) {
       final ref = baseline.standing('curlRef', smoothed, dir == 0 && !attempt);
-      upA = math.min(e.upAngle, ref - 4).clamp(110.0, e.upAngle).toDouble();
+      // never more bent than curlTopMin: a full curl starts from a (near) straight arm, about
+      // 0-130 deg of elbow flexion; 50-100 is a partial rep (Pinto et al. 2012, J Strength Cond
+      // Res 26(8)). The old floor (110 = 70 deg bent) learned an arm held half bent as the top,
+      // and every later top-half rep counted. 135 still allows a relaxed arm read bent in 2D.
+      upA = math.min(e.upAngle, ref - 4).clamp(e.limit('curlTopMin', 135), e.upAngle).toDouble();
       curlUpA = upA;
     }
 
@@ -1131,11 +1359,27 @@ class RepCounter {
     lastSpeedTime = t;
 
     // ---- gates: no rep can start or finish while one of these is closed ----
-    final gateOk = _gates(g, e, t, armDown: armDown);
+    var gateOk = _gates(g, e, t, armDown: armDown);
 
     // which way the body is filmed: true = shoulder line across the picture
     // (bench head/foot end), false = side on, null = unknown
     final front = isBench ? _benchFront(g, e) : _frontal(g, e);
+
+    // ---- BENCH: phone above the bench, looking down (see _checkCameraAbove) ----
+    if (isBench) {
+      _checkCameraAbove(g, t);
+      if (front == true) _checkHeadEnd(g);
+      if (cameraAbove) {
+        gateOk = false;
+        gateMsg = 'Put the phone at bench height';
+        if (attempt || dir != 0) {
+          attempt = false;
+          dir = 0;
+          bottomSince = null;
+          repFaults.clear();
+        }
+      }
+    }
 
     // ---- DEADLIFT: knees never bend to squat depth (python squat_like) ----
     if (isDead) _checkSquatLike(g, e, smoothed);
@@ -1144,6 +1388,7 @@ class RepCounter {
     if (isBench && front == true) _learnUpperArm(g, e, dir == 0 && !attempt);
     if (isBench) _checkFlare(g, e, t, per, front);
     if (isBench) _checkPressPosition(g, e, t, per);
+    if (isBench) _checkBarAndOverhead(g, e, front, dir == 0 && !attempt);
 
     // ---- form checks for this frame ----
     final idle = dir == 0 && !attempt;
@@ -1399,6 +1644,14 @@ class RepCounter {
       benchFlareNow = 0;
       flareOverSince = null;
       benchFlared = false;
+      tuckUnderSince = null;
+      benchTucked = false;
+      barMinRatio = 9;
+      overheadMax = -9;
+      flareBottomSum = 0;
+      flareBottomN = 0;
+      flareHalfSum = 0;
+      flareHalfN = 0;
       flareSmooth = null;
       benchOffTime = 0;
       pressUpLast = true;
@@ -1533,7 +1786,15 @@ class RepCounter {
       if (dir == 1) {
         _finishRep(e, t);
       } else if (attempt && peakPer >= attemptPer) {
-        _incompleteRep(e, t); // went part way down and came back
+        if (isBench && flareHalfN >= 3 && flareHalfSum / flareHalfN <= e.limit('tuckReject', 0)) {
+          // part way down with the elbows pinned to the ribs: name the real reason
+          repLabel = 'Rejected';
+          repLevel = FormLevel.bad;
+          repDetail = 'Elbows tucked in';
+          repLabelTime = t;
+        } else {
+          _incompleteRep(e, t); // went part way down and came back
+        }
       }
       dir = 0;
       attempt = false;
@@ -1593,7 +1854,7 @@ class RepCounter {
             ? 'side'
             : '?'}  '
         'flare ${benchFlareNow.round()} (worst ${benchFlare.round()}  '
-        'reject ${e.limit('flareReject', 100).round()}  '
+        'reject ${e.limit(flareKey('flareReject'), 100).round()}${benchHeadEnd ? ' head' : ''}  '
         'squash ${dbgSquash.isFinite ? dbgSquash.toStringAsFixed(2) : '-'}  '
         'armPic ${dbgArmPic.isFinite ? dbgArmPic.toStringAsFixed(2) : '-'}  '
         'armRef ${(baseline['upperArmSw'] ?? 0).toStringAsFixed(2)}'

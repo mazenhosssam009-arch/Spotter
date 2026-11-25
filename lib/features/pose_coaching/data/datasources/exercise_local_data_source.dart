@@ -1,4 +1,4 @@
-import 'package:ai_trainer/features/pose_coaching/domain/entities/exercise.dart';
+﻿import 'package:ai_trainer/features/pose_coaching/domain/entities/exercise.dart';
 
 // the exercise catalogue on the device (Main.py menu)
 abstract class ExerciseLocalDataSource {
@@ -86,12 +86,29 @@ const exercises = [
       // ~45 deg at a 1.5x biacromial grip, >75 at 2x (Green & Comfort 2007, Strength Cond J 29(5):10-14)
       // near 90 = suspected subacromial impingement zone; these are clinical expert opinion,
       // not measured injury thresholds (Noteboom et al. 2024, Front Physiol 15:1393235)
-      'flareMax': 75, // warn above this (wide-grip figure)
-      // reject only clearly past the ~90 zone: 75-80 is a normal wide grip, and a 2D picture
-      // from the head/foot end over-reads the flare (45 deg tucked elbows read ~85), so a
-      // lower limit rejected good reps. Only the warning fires between 75 and 100.
-      'flareReject': 100,
-      'flareMin': 0, // 0 = the "Elbows tucked in" warning never fires (no research basis for a lower bound)
+      // Flare is read from the head/foot end at bench height (the only view that shows it). In
+      // a 3D-projected test of that view one reading is ~5-8 deg LOW (true 20/45/75/95 ->
+      // 13/37/69/90) and the average over the bottom of the rep (what rejects a rep) ~9 low
+      // (true 30/75/90 -> 22/65/81), so the limits are the true angles minus those offsets.
+      // Studied abduction range 45-90 deg (Noteboom et al. 2024); <1.5x shoulder-width grips stay
+      // below 45, 2x grips go past 75 (Fees 1998, cited there).
+      'flareMax': 70, // warn: wider than a wide grip (true ~75)
+      // reject (bottom average) from the 90 deg "high abduction" variant on: 80 = true ~89, a
+      // little below 90 so a 90 deg flare is never left on the knife edge (85 still counts)
+      'flareReject': 80,
+      // Very tucked: below the studied 45-90 range, elbows pinned to the ribs. A coaching
+      // limit, not an injury threshold (close-grip pressing near 45 deg is normal).
+      'flareMin': 32, // warn (true ~40)
+      'tuckReject': 22, // reject (bottom average, true 30)
+      // the bar must come down to <= 65% of the lockout height above the shoulders: a full rep
+      // reaches 33-38% in the 3D test (55% with the upper arm only level with the torso), a
+      // half rep stops at ~80%. Partial reps are defined by the
+      // bar distance from the chest / lockout (Massey et al. 2004, J Strength Cond Res 18(3))
+      'barReach': 0.65,
+      // wrists more than 0.4 torso lengths past the shoulders toward the head = overhead press
+      // (bench pushes across the body axis, the overhead press along it; measured bench <= 0.09,
+      // overhead press >= 0.51)
+      'overheadMax': 0.4,
     },
   ),
 ];
