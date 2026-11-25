@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:ai_trainer/core/utils/cv_math.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/coaching_feedback.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/exercise.dart';
-import 'package:ai_trainer/features/pose_coaching/domain/entities/form_checks/curl_form_check.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/form_checks/form_check.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/form_checks/form_evaluator.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/form_evaluation.dart';
@@ -206,6 +205,29 @@ class RepCounter {
 
   // ---- curl: filmed facing the camera (frozen during a rep, like deadFront) ----
   bool curlFront = false;
+
+  // ---- curl, "both arms", filmed side on: only the arm facing the camera can be measured ----
+  // The far arm is hidden behind the body and ML Kit just guesses it. Picked while idle and
+  // frozen during a rep: -1 = judge both arms, 0 = the right arm only, 1 = the left arm only.
+  int curlNear = -1;
+  // the near arm must be seen this much more surely than the far one to leave the far one out
+  static const curlNearGap = 0.1;
+
+  // ---- curl: the arm stays where it is near the top (see _stepRep) ----
+  // A relaxed arm does not always read as straight as the fixed 0% line (worse from the side,
+  // or after a bad rep that ended with the arm a little bent). Hanging still for this long, in
+  // the top part of the range, ends the rep there and the arm's own resting angle is learned.
+  static const curlSettleSeconds = 0.5;
+  static const curlSettlePer = 30.0; // % of the range: only near the top
+  static const curlSettleSpeed =
+      25.0; // deg/s: a real curl is much faster than this
+  // Continuous reps never hang still. After the bottom the arm extends, and when it turns back
+  // (bends again by curlTurnDeg) within the top curlSettlePer of the range, that is the end of
+  // the rep. Reps that extend all the way never get here: they end at the top line first.
+  static const curlTurnDeg = 6.0;
+  double curlExtMax =
+      0; // straightest (largest) angle since the bottom of this rep
+  double curlUpA = 160; // the 0% angle of the last frame (see update)
 
   // ---- curl: swing faults are latched during a rep (see _stepRep) ----
   // a swing / elbow / shoulder fault that lasts this long rejects the rep (2+ frames, so a
@@ -906,6 +928,7 @@ class RepCounter {
     deadBarTime = 0;
     frontSquatDbg = false;
     curlBlockSince.clear();
+    curlNear = -1;
   }
 
   /// bad numbers (NaN) and one-frame tracking glitches must not move the angle
@@ -935,7 +958,7 @@ class RepCounter {
   /// one camera frame: count reps, check form, update the score. [t] = time.time()
   void update(PoseFrame lmList, double t) {
     final g = PoseGeometry(lmList);
-    final e = active;
+    var e = active;
     jointAngles.clear();
     debugLines.clear();
     final dbg = debugLines;
@@ -949,8 +972,8 @@ class RepCounter {
         !isDead ||
         (g.hasPerson &&
             (g.visible([12, 24, 26, 28]) || g.visible([11, 23, 25, 27])));
-    final rightOk = g.hasPerson && fullBody && g.visible(e.right);
-    final leftOk =
+    var rightOk = g.hasPerson && fullBody && g.visible(e.right);
+    var leftOk =
         g.hasPerson && fullBody && e.left != null && g.visible(e.left!);
     gateMsg = null;
     tracking = rightOk || leftOk;
@@ -976,6 +999,27 @@ class RepCounter {
     // ---- the joint angle of this frame ----
     // curl: side on (or unknown) = false = everything works exactly as before
     if (isCurl && dir == 0 && !attempt) curlFront = _frontal(g, e) == true;
+    // curl, side on, "both arms": the far arm is hidden and only guessed, and the straighter of
+    // the two angles is used below, so its guess kept every rep from counting. Judge the arm
+    // facing the camera alone (like the single-arm modes). Facing the camera nothing changes.
+    if (isCurl && e.left != null) {
+      if (dir == 0 && !attempt) {
+        curlNear = -1;
+        if (!curlFront && rightOk && leftOk) {
+          final cR = g.confidence(e.right), cL = g.confidence(e.left!);
+          if (cR - cL > curlNearGap) curlNear = 0;
+          if (cL - cR > curlNearGap) curlNear = 1;
+        }
+      }
+      if (curlNear == 0 && rightOk) {
+        e = _oneArm(e, e.right);
+        leftOk = false;
+      } else if (curlNear == 1 && leftOk) {
+        e = _oneArm(e, e.left!);
+        rightOk = true;
+        leftOk = false;
+      }
+    }
     var aR = rightOk ? PoseGeometry.fold(_findAngle(g, e.right)) : 0.0;
     var aL = leftOk ? PoseGeometry.fold(_findAngle(g, e.left!)) : 0.0;
     // curl facing the camera: the 2D angle drops too early (quarter reps counted), so a rep
@@ -1044,6 +1088,15 @@ class RepCounter {
       smoothed = smoothAngle = 0.7 * smoothAngle! + 0.3 * angle;
     } else {
       smoothed = _smooth(angle, t);
+    }
+
+    // curl: 0% = the user's OWN extended arm (learned while idle, frozen during a rep), never
+    // straighter than the fixed upAngle. A relaxed arm often reads 130-150 in 2D, especially from
+    // the side; with a fixed 160 such an arm never got back to the top and no rep was counted.
+    if (isCurl) {
+      final ref = baseline.standing('curlRef', smoothed, dir == 0 && !attempt);
+      upA = math.min(e.upAngle, ref - 4).clamp(110.0, e.upAngle).toDouble();
+      curlUpA = upA;
     }
 
     // ---- depth of the rep, 0..100 ----
@@ -1115,7 +1168,15 @@ class RepCounter {
     lastEval = ev;
 
     // ---- rep state machine (the bloc stops sending frames while the rest timer runs) ----
-    final reachPer = _stepRep(e, t, per, perRaw, smoothed, gateOk, armDown: armDown);
+    final reachPer = _stepRep(
+      e,
+      t,
+      per,
+      perRaw,
+      smoothed,
+      gateOk,
+      armDown: armDown,
+    );
     score.update(
       ev,
       t,
@@ -1200,14 +1261,26 @@ class RepCounter {
     return gateOk;
   }
 
+  /// curl: the same exercise following one arm only
+  Exercise _oneArm(Exercise e, List<int> arm) => Exercise(
+    name: e.name,
+    right: arm,
+    downAngle: e.downAngle,
+    upAngle: e.upAngle,
+    perFrameSmoothing: e.perFrameSmoothing,
+    variant: e.variant,
+    limits: e.limits,
+  );
+
   /// curl: the upper arm hangs down beside the body. At most 35 deg from the torso (Chen &
   /// Yang (2020) arXiv:2006.11718) + 10 deg pose-estimation error (Kim et al. (2023) Appl Sci
   /// 13(4):2700) = 45 deg from straight down (the torso is upright in a standing curl).
   bool _armDown(PoseGeometry g, Exercise e) {
     for (final arm in [e.right, if (e.left != null) e.left!]) {
       final s = g.point(arm[0]), el = g.point(arm[1]);
-      if (s == null || el == null) continue;
-      if (el.dy <= s.dy || PoseGeometry.fromVertical(s, el) > e.limit('armDownMax', 35)) {
+      if (s == null || el == null || !g.visible([arm[0], arm[1]])) continue;
+      if (el.dy <= s.dy ||
+          PoseGeometry.fromVertical(s, el) > e.limit('armDownMax', 35)) {
         return false;
       }
     }
@@ -1233,12 +1306,19 @@ class RepCounter {
       // midpoint to hip midpoint) in shoulder widths, as a fraction of the lifter's own
       // standing value (learned while idle, frozen during a rep). The smallest value of the
       // rep is judged in _finishRep.
-      final sa = g.point(11), sb = g.point(12), ha = g.point(23), hb = g.point(24);
+      final sa = g.point(11),
+          sb = g.point(12),
+          ha = g.point(23),
+          hb = g.point(24);
       if (sa != null && sb != null && ha != null && hb != null) {
         final sw = (sa - sb).distance;
         if (sw > 1) {
           final torso = ((sa + sb) / 2 - (ha + hb) / 2).distance / sw;
-          final stand = baseline.standing('frontTorso', torso, dir == 0 && !attempt);
+          final stand = baseline.standing(
+            'frontTorso',
+            torso,
+            dir == 0 && !attempt,
+          );
           if (attempt && stand > 0) {
             minTorsoRatio = math.min(minTorsoRatio, torso / stand);
           }
@@ -1351,12 +1431,7 @@ class RepCounter {
         };
         for (final m in now) {
           final since = curlBlockSince.putIfAbsent(m, () => t);
-          // raised, tense shoulders are a held state, not a quick swing: the ear landmark is
-          // noisier than the swing checks, so this one has to last longer before it rejects
-          final need = m == CurlFormCheck.raisedMsg
-              ? e.limit('shoulderRaiseSeconds', 0.4)
-              : curlFaultSeconds;
-          if (t - since >= need) repFaults.add(m);
+          if (t - since >= curlFaultSeconds) repFaults.add(m);
         }
         curlBlockSince.removeWhere((m, _) => !now.contains(m));
       }
@@ -1403,6 +1478,7 @@ class RepCounter {
       bottomSince ??= t;
       if (dir == 0 && attempt && t - bottomSince! >= holdNeed) {
         dir = 1; // squatLike is NOT reset here: it must survive until the rep ends
+        curlExtMax = smoothed;
       }
     } else {
       bottomSince = null;
@@ -1417,13 +1493,42 @@ class RepCounter {
         ? 12.0
         : (isBench ? 10.0 : (isCurl ? e.limit('curlTop', 12) : 0.0));
     var atTop = perRaw <= topPer;
+    var curlSettled = false;
+    if (isCurl && dir == 1) {
+      curlExtMax = math.max(curlExtMax, smoothed);
+      final extPer = interp(curlExtMax, e.downAngle, curlUpA, 100, 0);
+      if (!atTop &&
+          extPer < curlSettlePer &&
+          smoothed < curlExtMax - curlTurnDeg) {
+        atTop = true;
+        curlSettled = true;
+      }
+    }
     if (isDead && dir == 1 && per < 30 && speed < 10) {
       settledSince ??= t;
       if (t - settledSince! >= 0.5) atTop = true;
+    } else if (isCurl &&
+        (attempt || needRest) &&
+        per < curlSettlePer &&
+        speed < curlSettleSpeed) {
+      // curl: the arm hangs still near the top without reaching the exact top line (it rests a
+      // little bent). That is the end of the rep (or of the wait after an alternate swap), and
+      // this is the arm's new resting angle: without it the rep stayed open for ever and
+      // every later rep was lost.
+      settledSince ??= t;
+      if (t - settledSince! >= curlSettleSeconds) {
+        atTop = true;
+        curlSettled = true;
+      }
     } else {
       settledSince = null;
     }
     if (atTop) {
+      if (curlSettled) {
+        baseline['curlRef'] = (dir == 1 && curlExtMax > smoothed)
+            ? curlExtMax
+            : smoothed;
+      }
       needRest = false; // (alternate mode: _finishRep below may set it again for the next arm)
       if (dir == 1) {
         _finishRep(e, t);
@@ -1463,6 +1568,7 @@ class RepCounter {
       dbg.add(
         'view ${curlFront ? 'FRONT' : 'side'}  smooth ratio ${dbgSmoothRatio.toStringAsFixed(2)}'
         '${curlFront ? '  wrist-angle ${dbgCurlFront.isFinite ? dbgCurlFront.round() : '-'}' : ''}'
+        '  rest ${baseline['curlRef']?.round() ?? '-'}${curlNear >= 0 ? '  near ${curlNear == 0 ? 'R' : 'L'}' : ''}'
         '${altMode ? '  next ${altRightNext ? 'R' : 'L'}' : ''}',
       );
     }

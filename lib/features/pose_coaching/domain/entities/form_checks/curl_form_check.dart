@@ -36,7 +36,8 @@ class CurlFormCheck extends FormCheck {
         final bsy = base.quickFollow('shY${arm[0]}', s.dy, idle);
         final sdx = s.dx - bsx, sdy = s.dy - bsy;
         ev.limit(
-          math.sqrt(sdx * sdx + sdy * sdy) / ruler - e.limit('shoulderMove', 0.12) * k,
+          math.sqrt(sdx * sdx + sdy * sdy) / ruler -
+              e.limit('shoulderMove', 0.12) * k,
           0.2,
           'Shoulder moving - stay still',
           block: true,
@@ -48,7 +49,8 @@ class CurlFormCheck extends FormCheck {
         final boy = base.quickFollow('elY${arm[0]}', el.dy - s.dy, idle);
         final edx = (el.dx - s.dx) - box, edy = (el.dy - s.dy) - boy;
         ev.limit(
-          math.sqrt(edx * edx + edy * edy) / ruler - e.limit('elbowMove', 0.25) * k,
+          math.sqrt(edx * edx + edy * edy) / ruler -
+              e.limit('elbowMove', 0.25) * k,
           0.3,
           'Elbow moving - keep it by your side',
           block: true,
@@ -58,10 +60,10 @@ class CurlFormCheck extends FormCheck {
         // ear-to-shoulder distance shrinks. A neck is short, so this is far more sensitive than
         // the torso length (check 3). The reference is the LONGEST (most relaxed) neck seen while
         // idle, in upper-arm lengths, so someone who starts the set tense is caught as soon as
-        // they have relaxed once. Warns at shoulderRaise (fraction shorter than relaxed) and
-        // REJECTS the rep at shoulderRaise + shoulderRaiseReject once that lasts
-        // shoulderRaiseSeconds (see RepCounter). Skipped when the ear on this side is not seen
-        // (filmed from the other side).
+        // they have relaxed once. WARNING ONLY: it warns at shoulderRaise (fraction shorter
+        // than relaxed) but never rejects the rep (the ear landmark is too noisy when the phone
+        // is a bit uneven). Skipped when the ear on this side is not seen (filmed from the
+        // other side).
         final earId = isRight ? 8 : 7;
         final ear = g.point(earId);
         if (ear != null && g.visible([earId])) {
@@ -72,8 +74,6 @@ class CurlFormCheck extends FormCheck {
               1 - neck / relaxed - e.limit('shoulderRaise', 0.10),
               0.15,
               raisedMsg,
-              block: true,
-              blockAt: e.limit('shoulderRaiseReject', 0.08),
             );
           }
         }
@@ -97,7 +97,8 @@ class CurlFormCheck extends FormCheck {
           // Warns at swing degrees and REJECTS the rep at swing + swingReject
           final lean = PoseGeometry.fromVertical(hip, s);
           ev.limit(
-            (lean - base.follow('lean$hipId', lean, idle)).abs() - e.limit('swing', 8) * k,
+            (lean - base.follow('lean$hipId', lean, idle)).abs() -
+                e.limit('swing', 8) * k,
             20,
             'Swinging - stay still',
             block: true,
@@ -106,7 +107,8 @@ class CurlFormCheck extends FormCheck {
           // 3) shoulder shrug / shoulders rocking: torso length (hip to shoulder) changes.
           // Warns at shrug and REJECTS the rep at shrug + shrugReject
           ev.limit(
-            ((torso / base.follow('torso$hipId', torso, idle)) - 1).abs() - e.limit('shrug', 0.08) * k,
+            ((torso / base.follow('torso$hipId', torso, idle)) - 1).abs() -
+                e.limit('shrug', 0.08) * k,
             0.12,
             i.curlFront ? 'Leaning - keep still' : 'Shoulders shrugging',
             block: true,
@@ -120,7 +122,8 @@ class CurlFormCheck extends FormCheck {
       if (s2 != null && g.visible([otherShId])) {
         final sw = (s - s2).distance;
         ev.limit(
-          ((sw / base.follow('sw$hipId', sw, idle)) - 1).abs() - e.limit('twist', 0.2),
+          ((sw / base.follow('sw$hipId', sw, idle)) - 1).abs() -
+              e.limit('twist', 0.2),
           0.2,
           'Torso twisting',
         );
