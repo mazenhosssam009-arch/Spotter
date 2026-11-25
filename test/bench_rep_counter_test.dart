@@ -10,20 +10,17 @@ import 'package:flutter_test/flutter_test.dart';
 /// elbow of both arms (145 = arms extended, 92 = bar at the chest). The torso is
 /// horizontal (shoulders and hips on the same line), so the lying gate is open.
 /// The arms go UP from the shoulders: on a bench the bar is always above the elbows.
+/// As in a real press the forearm stays vertical and the UPPER arm turns: at 145 the
+/// elbow is up and in front of the shoulder, at 92 it is level with it.
 PoseFrame benchSide(double elbowDeg) {
   const shoulderR = (400.0, 300.0), shoulderL = (410.0, 305.0);
   const hipR = (180.0, 300.0), hipL = (190.0, 305.0);
-  const elbowR = (400.0, 220.0), elbowL = (410.0, 225.0);
-  // the forearm turns by (180 - elbowDeg) away from the upper arm
-  final turn = (180 - elbowDeg) * math.pi / 180;
-  final wristR = (
-    elbowR.$1 + 100 * math.sin(turn),
-    elbowR.$2 - 100 * math.cos(turn),
-  );
-  final wristL = (
-    elbowL.$1 + 100 * math.sin(turn),
-    elbowL.$2 - 100 * math.cos(turn),
-  );
+  final a = elbowDeg * math.pi / 180;
+  // elbow -> shoulder makes [elbowDeg] with the vertical forearm
+  final elbowR = (shoulderR.$1 - 110 * math.sin(a), shoulderR.$2 + 110 * math.cos(a));
+  final elbowL = (shoulderL.$1 - 110 * math.sin(a), shoulderL.$2 + 110 * math.cos(a));
+  final wristR = (elbowR.$1, elbowR.$2 - 100);
+  final wristL = (elbowL.$1, elbowL.$2 - 100);
   return _pose(<int, (double, double)>{
     11: shoulderL, 12: shoulderR, 13: elbowL, 14: elbowR, 15: wristL, 16: wristR,
     23: hipL, 24: hipR, 25: (190.0, 400.0), 26: (180.0, 400.0),

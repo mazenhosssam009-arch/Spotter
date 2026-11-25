@@ -570,8 +570,7 @@ class RepCounter {
     pressTiltNow = 0;
     pressOffNow = false;
     if (!attempt) return;
-    var judged = 0;
-    var off = false;
+    var judged = 0, offArms = 0;
     var notUp = false; // a wrist is not above its shoulder this frame
     for (final arm in [e.right, if (e.left != null) e.left!]) {
       if (!g.visible(arm)) continue;
@@ -582,14 +581,21 @@ class RepCounter {
       judged++;
       final tilt = PoseGeometry.fromVertical(el, wr); // forearm vs vertical
       pressTiltNow = math.max(pressTiltNow, tilt);
-      // forearm must point up: wrist above the elbow and near vertical (image y grows down)
-      if (wr.dy >= el.dy || tilt > e.limit('pressTilt', 40)) off = true;
+      // forearm must point up: wrist above the elbow and near vertical (image y grows down).
+      // A real press leans the forearm 15-30 deg (the bar path curves; wider grips and
+      // dumbbells lean more), a fake rep (shoulder rotated down) holds it near horizontal,
+      // so 55 deg keeps the fakes out without rejecting real reps (40 rejected them)
+      var armOff = wr.dy >= el.dy || tilt > e.limit('pressTilt', 55);
       // near lockout the wrist must be above the shoulder, not out in front of it
-      if (per <= 30 && wr.dy > sh.dy - 0.25 * upper) off = true;
+      if (per <= 30 && wr.dy > sh.dy - 0.25 * upper) armOff = true;
+      if (armOff) offArms++;
       // same height test, in every frame: used by the end-of-rep check in _finishRep
       if (wr.dy > sh.dy - 0.25 * upper) notUp = true;
     }
     if (judged == 0) return;
+    // out of position only when EVERY arm that can be judged is: from the side the far arm is
+    // half hidden behind the body and its jitter alone used to reject good reps
+    final off = offArms == judged;
     pressUpLast = !notUp;
     pressUpLastT = t;
     pressOffNow = off;
@@ -990,6 +996,14 @@ class RepCounter {
           aL = aL.isFinite ? math.max(aL, f) : f;
         }
       }
+    }
+    // bench from the side: the far arm is half hidden behind the body, and its jitter made the
+    // "straighter arm" below read every bottom too shallow. When one arm is seen much less
+    // surely than the other, the clearer arm alone is followed.
+    if (isBench && rightOk && leftOk) {
+      final cR = g.confidence(e.right), cL = g.confidence(e.left!);
+      if (cR - cL > 0.2) aL = double.nan;
+      if (cL - cR > 0.2) aR = double.nan;
     }
     // both sides must bend: use the straighter one, so moving one side can't count a rep
     // deadlift: decide side view / front view only while idle (never mid-rep)

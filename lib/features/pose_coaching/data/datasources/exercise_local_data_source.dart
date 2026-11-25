@@ -88,7 +88,10 @@ const exercises = [
       // near 90 = suspected subacromial impingement zone; these are clinical expert opinion,
       // not measured injury thresholds (Noteboom et al. 2024, Front Physiol 15:1393235)
       'flareMax': 75, // warn above this (wide-grip figure)
-      'flareReject': 80,
+      // reject only clearly past the ~90 zone: 75-80 is a normal wide grip, and a 2D picture
+      // from the head/foot end over-reads the flare (45 deg tucked elbows read ~85), so a
+      // lower limit rejected good reps. Only the warning fires between 75 and 100.
+      'flareReject': 100,
       'flareMin': 0, // 0 = the "Elbows tucked in" warning never fires (no research basis for a lower bound)
     },
   ),

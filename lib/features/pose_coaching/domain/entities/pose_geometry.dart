@@ -32,6 +32,11 @@ class PoseGeometry {
   /// true when all these landmarks are really seen
   bool visible(List<int> ids) => frame.isVisible(ids);
 
+  /// how surely the LEAST sure of these landmarks is seen (0..1)
+  double confidence(List<int> ids) => ids
+      .map((id) => frame.landmark(id).likelihood)
+      .fold(1.0, (a, b) => math.min(a, b));
+
   /// landmark [id] in whole pixels (like lmList = [id, cx, cy]), null when nobody is seen
   Vec2? point(int id) {
     if (!frame.hasPerson) return null;
