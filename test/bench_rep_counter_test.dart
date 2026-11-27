@@ -228,7 +228,7 @@ void main() {
 
   test('bench: a moderate flare only warns and still counts the rep', () {
     final s = _Sim()
-      ..pose = ((e) => benchFront(e, flareDeg: 75)) // past flareMax 70, below flareReject 80
+      ..pose = ((e) => benchFront(e, flareDeg: 95)) // past flareMax 75, below flareReject 100 (this pose is not read as the head end)
       ..setup();
     s.move(145, 92, 1.2);
     s.hold(92, 0.8); // long enough for the warning to pass its debounce

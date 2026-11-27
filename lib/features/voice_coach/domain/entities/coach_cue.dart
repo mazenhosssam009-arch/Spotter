@@ -93,7 +93,8 @@ enum CoachCue {
   static const _notes = <String, CoachCue>{
     'Facing camera: back not checked (film from the side)': CoachCue.turnSideways,
     'Head/back not visible': CoachCue.headBackHidden,
-    'Flare needs head/foot view': CoachCue.flareView,
+    // (the recorded line still says "head or feet"; only the head end checks the elbows)
+    'Put the phone behind your head to check elbows': CoachCue.flareView,
   };
 }
 

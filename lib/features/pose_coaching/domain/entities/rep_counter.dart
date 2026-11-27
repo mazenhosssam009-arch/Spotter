@@ -136,8 +136,42 @@ class RepCounter {
   // than at the foot end (3D test: hip/shoulder width 0.61 vs 0.87-0.91).
   double headEndScore = 0;
   bool benchHeadEnd = false;
+  int headEndFrames = 0; // frames the head/foot-end question was judged
+  // ---- bench, head end: how HIGH is the phone? (see _checkHeadEnd) ----
+  // Read from where the hips sit in the picture against the shoulders, in shoulder widths
+  // (3D test, hips level with the shoulders: phone on the floor +0.16..+0.27, knee height
+  // -0.09, bench height -0.21, raised 0.6-0.8 m above the bench -0.37..-0.46).
+  // LOW (phone on the floor, looking up): the flare reads compressed near the top (true
+  // 85/90/95 -> 83/84/85 bottom average), so 85 and 90 cannot be told apart and the flare
+  // rejection is left out there (warning and tuck rules stay: those readings match bench height).
+  // RAISED (phone above bench height, below the "from above" view): the elbow angle at the
+  // chest reads too open (true bottom 85 -> 105-135 at a 20-45 deg flare), so the elbow alone
+  // never reaches the bottom; the bar height is used as a second depth reading there.
+  double camLowScore = 0, camRaisedScore = 0;
+  bool benchCamLow = false, benchCamRaised = false;
+  double? barNow; // wrist height above the shoulders / lockout height, this frame
+  double camHy = -0.21; // smoothed hips-vs-shoulders height in the picture (bench height)
   /// the limit key for the flare / tuck limits in this view
   String flareKey(String key) => benchHeadEnd ? '${key}Head' : key;
+
+  /// the flare (bottom average / lasting reading) that rejects a rep in this view. At the head
+  /// end it follows the phone height: the same true flare reads differently from each height
+  /// (3D test, bottom average, true 85 / true 90): knee height 79.9 / 86.4+, between knee and
+  /// bench height 76.2 / 82.0, bench height to 0.65 m 75.5 / 79.3, raised 77.6-79.7 / 81.0-82.5.
+  /// The limit sits between the two, so neither an 85 nor a 90 is left on the knife edge.
+  double flareRejectLimit(Exercise e) {
+    if (!benchHeadEnd) return e.limit('flareReject', 100);
+    if (benchCamLow) return e.limit('flareRejectLow', 100);
+    if (benchCamRaised) return e.limit('flareRejectRaised', 80.4);
+    final bench = e.limit('flareRejectHead', 77.5), knee = e.limit('flareRejectKnee', 83.5);
+    // bench height (hy <= -0.18) -> knee height (hy 0)
+    return interp(camHy, -0.18, 0.0, bench, knee).clamp(math.min(bench, knee), math.max(bench, knee)).toDouble();
+  }
+
+  /// the bar depth limit (see [barTop]): stricter with the phone on the floor at the head end,
+  /// where a 3/4 rep already reads "at the chest" on the elbow angle
+  double barReachLimit(Exercise e) =>
+      (benchHeadEnd && benchCamLow) ? e.limit('barReachLow', 0.42) : e.limit('barReach', 0.65);
   // ---- bench: elbows pinned to the ribs ("very tucked", see _checkFlare) ----
   double? tuckUnderSince;
   bool benchTucked = false;
@@ -622,7 +656,7 @@ class RepCounter {
     flareHalfSum += benchFlareNow; // _checkFlare only reads the flare from 50% depth on
     flareHalfN++;
     // only a flare that LASTS rejects
-    if (benchFlareNow >= e.limit(flareKey('flareReject'), 100)) {
+    if (benchFlareNow >= flareRejectLimit(e)) {
       flareOverSince ??= t;
       if (t - flareOverSince! >= flareRejectHold) benchFlared = true;
     } else {
@@ -657,6 +691,7 @@ class RepCounter {
     final squash = g.torsoSquash();
     // up in the picture = up in the room: side view, or head/foot end at bench height
     final level = front == false || (front == true && squash != null && squash < PoseGeometry.endOnSquash);
+    barNow = null;
     if (level) {
       final h = s.dy - w.dy; // wrists above the shoulder (image y grows down)
       if (h > barTop) {
@@ -664,12 +699,16 @@ class RepCounter {
       } else if (idle) {
         barTop += 0.01 * (h - barTop); // a new session / camera: slowly forget an old lockout
       }
+      if (barTop > 1) barNow = h / barTop;
       if (attempt && barTop > 1) barMinRatio = math.min(barMinRatio, h / barTop);
     }
     // overhead press: wrists past the shoulders along the body axis (needs the torso seen,
     // not end-on). The axis runs from the hips (or, lying with the hips hidden, away from
-    // the nose) to the shoulders.
-    if (attempt && squash != null && squash >= PoseGeometry.endOnSquash && g.visible([11, 12])) {
+    // the nose) to the shoulders. Only with the lying check OFF (when it is on, the lying gate
+    // already stops a standing press) and with the torso seen near full length (standing press
+    // facing / side: >= 1.2): a phone high at the FOOT end of a bench sees the torso
+    // foreshortened (~0.7) and the arms pointing past the head, reading like a press (3D test).
+    if (attempt && !lyingCheck && squash != null && squash >= 1.0 && g.visible([11, 12])) {
       final a = g.point(11), b = g.point(12);
       if (a == null || b == null) return;
       final mid = (a + b) / 2;
@@ -689,11 +728,9 @@ class RepCounter {
     }
   }
 
-  /// bench: is the phone above the bench, looking down? The torso is then long in the picture
-  /// (not end-on as at the head/foot end, not sideways as from the side) and runs up/down it.
-  /// Straight above, the vertical forearm also points at the lens (short). Must last 1 s.
-  /// bench, end-on view: head end or foot end? (see [benchHeadEnd]) Slow, with hysteresis;
-  /// judged only while both hips and shoulders are seen, else the last answer stays.
+  /// bench, end-on view: head end or foot end? (see [benchHeadEnd]) and how high is the phone
+  /// (see [benchCamLow]). Slow, with hysteresis; judged only while both hips and shoulders are
+  /// seen, else the last answer stays.
   void _checkHeadEnd(PoseGeometry g) {
     final squash = g.torsoSquash();
     if (squash == null || squash >= PoseGeometry.endOnSquash) return;
@@ -708,8 +745,26 @@ class RepCounter {
     if (headEndScore > 0.7) benchHeadEnd = true;
     if (headEndScore < 0.3) benchHeadEnd = false;
     baseline['benchHeadEnd'] = benchHeadEnd ? 1 : 0;
+    // a settled foot-end answer (not the first frames, while the score is still climbing):
+    // the form check then tells the user where the elbows can be checked
+    if (headEndFrames < 1000) headEndFrames++;
+    baseline['benchFootEnd'] = (!benchHeadEnd && headEndScore < 0.3 && headEndFrames >= 45) ? 1 : 0;
+    // phone height (see [benchCamLow]); only meaningful at the head end
+    final hy = ((f.landmark(23).y + f.landmark(24).y) - (f.landmark(11).y + f.landmark(12).y)) / 2 / sw;
+    camHy += 0.05 * (hy - camHy);
+    baseline['flareRejectNow'] = flareRejectLimit(exercise);
+    camLowScore += 0.05 * ((hy > 0.05 ? 1 : 0) - camLowScore);
+    camRaisedScore += 0.05 * ((hy < -0.3 ? 1 : 0) - camRaisedScore);
+    if (camLowScore > 0.7) benchCamLow = true;
+    if (camLowScore < 0.3) benchCamLow = false;
+    if (camRaisedScore > 0.7) benchCamRaised = true;
+    if (camRaisedScore < 0.3) benchCamRaised = false;
+    baseline['benchCamLow'] = (benchHeadEnd && benchCamLow) ? 1 : 0;
   }
 
+  /// bench: is the phone above the bench, looking down? The torso is then long in the picture
+  /// (not end-on as at the head/foot end, not sideways as from the side) and runs up/down it.
+  /// Straight above, the vertical forearm also points at the lens (short). Must last 1 s.
   void _checkCameraAbove(PoseGeometry g, double t) {
     final squash = g.torsoSquash();
     final a = g.point(11), b = g.point(12), hl = g.point(23), hr = g.point(24);
@@ -887,7 +942,7 @@ class RepCounter {
       // bench, elbows pinned to the ribs: from the head/foot end the elbow angle then only moves
       // in the last part of the descent, so the rep looks too short and was dropped without a
       // word. It is still not counted, but the reason is named.
-      if (isBench && flareHalfN >= 3 && flareHalfSum / flareHalfN <= e.limit('tuckReject', 0)) {
+      if (isBench && benchHeadEnd && flareHalfN >= 3 && flareHalfSum / flareHalfN <= e.limit('tuckRejectHead', 0)) {
         repLabel = 'Rejected';
         repLevel = FormLevel.bad;
         repDetail = 'Elbows tucked in';
@@ -934,7 +989,7 @@ class RepCounter {
     // bench only: decide flare / tuck on the average over the bottom of the rep
     if (isBench && flareBottomN >= 3) {
       final mean = flareBottomSum / flareBottomN;
-      if (mean >= e.limit(flareKey('flareReject'), 100)) benchFlared = true;
+      if (mean >= flareRejectLimit(e)) benchFlared = true;
       if (benchHeadEnd && mean <= e.limit('tuckRejectHead', 0)) benchTucked = true;
     }
     // bench only: elbows flared out to the sides = shoulder joint at risk, do not count.
@@ -966,7 +1021,7 @@ class RepCounter {
       return;
     }
     // bench only: the elbows bent enough, but the bar never came down near the chest
-    if (isBench && barMinRatio < 9 && barMinRatio > e.limit('barReach', 0.65)) {
+    if (isBench && barMinRatio < 9 && barMinRatio > barReachLimit(e)) {
       _incompleteRep(e, t);
       return;
     }
@@ -1346,7 +1401,7 @@ class RepCounter {
     // bench press are therefore read from the (jump-filtered) raw angle; the bottom hold
     // still stops a single bad frame from counting. Everything else (bar display, form
     // checks, ROM) keeps the smoothed depth. For every other exercise this is [per].
-    final perRaw = isBench
+    var perRaw = isBench
         ? interp(angle, downA, upA, 100, 0).clamp(0.0, 100.0).toDouble()
         : per;
     curPer = per;
@@ -1386,9 +1441,20 @@ class RepCounter {
 
     // ---- BENCH: learn the arm length (end-on view), then remember the worst elbow flare ----
     if (isBench && front == true) _learnUpperArm(g, e, dir == 0 && !attempt);
+    // (the bar is read before the flare: a raised phone needs the bar depth for both)
+    if (isBench) _checkBarAndOverhead(g, e, front, dir == 0 && !attempt);
+    // bench, phone raised at the head end (see [benchCamRaised]): the elbow angle reads too
+    // open at the chest, so the bar height gives the depth too (lockout 0%, 'barFullRaised'
+    // of the lockout height = 100%). 3D test, raised 0.6-0.8 m: bar on the chest 0.35-0.51,
+    // 3/4 rep 0.57-0.72, half rep 0.79-0.89. Only there: elsewhere the elbow angle works.
+    if (isBench && front == true && benchHeadEnd && benchCamRaised && barNow != null) {
+      final barPer = interp(barNow!, e.limit('barFullRaised', 0.55), 1.0, 100, 0).clamp(0.0, 100.0).toDouble();
+      perRaw = math.max(perRaw, barPer);
+      per = math.max(per, barPer);
+      curPer = per;
+    }
     if (isBench) _checkFlare(g, e, t, per, front);
     if (isBench) _checkPressPosition(g, e, t, per);
-    if (isBench) _checkBarAndOverhead(g, e, front, dir == 0 && !attempt);
 
     // ---- form checks for this frame ----
     final idle = dir == 0 && !attempt;
@@ -1786,7 +1852,7 @@ class RepCounter {
       if (dir == 1) {
         _finishRep(e, t);
       } else if (attempt && peakPer >= attemptPer) {
-        if (isBench && flareHalfN >= 3 && flareHalfSum / flareHalfN <= e.limit('tuckReject', 0)) {
+        if (isBench && benchHeadEnd && flareHalfN >= 3 && flareHalfSum / flareHalfN <= e.limit('tuckRejectHead', 0)) {
           // part way down with the elbows pinned to the ribs: name the real reason
           repLabel = 'Rejected';
           repLevel = FormLevel.bad;
@@ -1854,7 +1920,7 @@ class RepCounter {
             ? 'side'
             : '?'}  '
         'flare ${benchFlareNow.round()} (worst ${benchFlare.round()}  '
-        'reject ${e.limit(flareKey('flareReject'), 100).round()}${benchHeadEnd ? ' head' : ''}  '
+        'reject ${flareRejectLimit(e).round()}${benchHeadEnd ? ' head' : ''}  '
         'squash ${dbgSquash.isFinite ? dbgSquash.toStringAsFixed(2) : '-'}  '
         'armPic ${dbgArmPic.isFinite ? dbgArmPic.toStringAsFixed(2) : '-'}  '
         'armRef ${(baseline['upperArmSw'] ?? 0).toStringAsFixed(2)}'

@@ -45,6 +45,13 @@ final cams = <String, Cam>{
   'head end, bench height': Cam((2.2, 0, 0.45), (-0.2, 0, 0.1), (0, 0, 1)),
   'head end, from above 45': Cam((1.7, 0, 1.75), (-0.2, 0, 0.0), (0, 0, 1)),
   'straight above': Cam((-0.15, 0, 2.6), (-0.15, 0, 0), (1, 0, 0)),
+  'foot end, bench height': Cam((-2.8, 0, 0.45), (-0.2, 0, 0.1), (0, 0, 1)),
+  'foot end, floor': Cam((-2.8, 0, -0.35), (-0.2, 0, 0.1), (0, 0, 1)),
+  'foot end, raised high': Cam((-2.4, 0, 1.6), (-0.2, 0, 0.0), (0, 0, 1)),
+  'head end, floor': Cam((2.2, 0, -0.35), (-0.2, 0, 0.1), (0, 0, 1)),
+  'head end, floor low': Cam((2.2, 0, -0.6), (-0.2, 0, 0.1), (0, 0, 1)),
+  'head end, raised 0.6': Cam((2.1, 0, 0.8), (-0.2, 0, 0.1), (0, 0, 1)),
+  'head end, raised 0.8': Cam((2.0, 0, 1.0), (-0.2, 0, 0.1), (0, 0, 1)),
 };
 
 /// landmarks of a lying bench presser. depth 0 = lockout, 1 = bar on the chest
@@ -191,6 +198,101 @@ void main() {
     });
     test('still counts with the lying check OFF', () {
       expect(run(bench(cam, 60), lyingCheck: false).$1, 5);
+    });
+  });
+
+  group('foot end (the flare reads high there and cannot be judged)', () {
+    for (final view in ['foot end, bench height', 'foot end, floor', 'foot end, raised high']) {
+      test('$view: good reps are never rejected, lying check ON and OFF', () {
+        for (final f in [45.0, 60.0, 75.0]) {
+          expect(run(bench(view, f)).$1, 5, reason: 'flare $f');
+          expect(run(bench(view, f), lyingCheck: false).$1, 5, reason: 'flare $f, lying off');
+        }
+      });
+    }
+    test('half reps are not counted', () {
+      expect(run(bench('foot end, bench height', 60), bottom: 0.5).$1, 0);
+    });
+  });
+
+  group('head end, phone on the floor (flare reads flattened near 90)', () {
+    const v = 'head end, floor';
+    test('full reps count from 30 to 85 deg; no 85 deg rep is rejected (90+ only warned here)', () {
+      for (final f in [30.0, 45.0, 60.0, 75.0, 85.0]) {
+        expect(run(bench(v, f)).$1, 5, reason: 'flare $f');
+      }
+    });
+    test('very tucked (20 deg) is still rejected', () {
+      expect(run(bench(v, 20)).$2, {'Rejected: Elbows tucked in'});
+    });
+    test('half and 3/4 reps are not counted, also with the phone flat on the floor', () {
+      for (final view in [v, 'head end, floor low']) {
+        for (final f in [30.0, 45.0, 75.0, 90.0]) {
+          expect(run(bench(view, f), bottom: 0.5).$1, 0, reason: '$view half, flare $f');
+          expect(run(bench(view, f), bottom: 0.75).$1, 0, reason: '$view 3/4, flare $f');
+        }
+      }
+    });
+    test('phone flat on the floor: full reps still count', () {
+      for (final f in [30.0, 45.0, 75.0, 90.0]) {
+        expect(run(bench('head end, floor low', f)).$1, 5, reason: 'flare $f');
+      }
+    });
+  });
+
+  group('head end, every phone height from the knee to 1.1 m: 85 counts, 90 is rejected', () {
+    // (the reject limit follows the phone height; with one fixed limit a 90 deg flare was
+    // counted at some heights and rejected at others)
+    for (final z in [0.0, 0.2, 0.35, 0.55, 0.6, 0.65, 0.7, 0.9, 1.1]) {
+      final c = Cam((2.2 - (z > 0.45 ? (z - 0.45) * 0.3 : 0), 0, z), (-0.2, 0, 0.1), (0, 0, 1));
+      PoseFrame Function(double) at(double f) => (d) => frame(benchBody(d, f), c);
+      test('phone at $z m', () {
+        for (final f in [45.0, 75.0, 85.0]) {
+          expect(run(at(f)).$1, 5, reason: 'flare $f');
+        }
+        for (final f in [90.0, 95.0]) {
+          expect(run(at(f)).$2, {'Rejected: Elbows flared wide'}, reason: 'flare $f');
+        }
+        expect(run(at(60), bottom: 0.75).$1, 0, reason: '3/4 rep');
+      });
+    }
+  });
+
+  group('head end, phone raised above bench height (bar height gives the depth)', () {
+    for (final v in ['head end, raised 0.6', 'head end, raised 0.8']) {
+      test('$v: full reps count from 30 to 85 deg (45 deg was "incomplete" before)', () {
+        for (final f in [30.0, 45.0, 60.0, 75.0, 85.0]) {
+          expect(run(bench(v, f)).$1, 5, reason: 'flare $f');
+        }
+      });
+      test('$v: half and 3/4 reps are not counted', () {
+        for (final f in [20.0, 45.0, 75.0, 90.0]) {
+          expect(run(bench(v, f), bottom: 0.5).$1, 0, reason: 'half, flare $f');
+          expect(run(bench(v, f), bottom: 0.75).$1, 0, reason: '3/4, flare $f');
+        }
+      });
+      test('$v: 90+ deg flare is still rejected', () {
+        for (final f in [90.0, 95.0]) {
+          expect(run(bench(v, f)).$2, {'Rejected: Elbows flared wide'}, reason: 'flare $f');
+        }
+      });
+    }
+  });
+
+  group('elbow tip where the elbows cannot be judged', () {
+    String? note(String view) {
+      final c = RepCounter(exercises.firstWhere((e) => e.name == 'Bench Press'));
+      var t = 0.0;
+      for (var i = 0; i < 120; i++) {
+        c.update(bench(view, 60)(0), t += 1 / 30);
+      }
+      return c.lastEval?.note;
+    }
+
+    test('side and foot end say where to put the phone; head end does not', () {
+      expect(note('side'), 'Put the phone behind your head to check elbows');
+      expect(note('foot end, bench height'), 'Put the phone behind your head to check elbows');
+      expect(note('head end, bench height'), isNot('Put the phone behind your head to check elbows'));
     });
   });
 

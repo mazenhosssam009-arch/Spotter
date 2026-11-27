@@ -5,6 +5,10 @@ import 'package:ai_trainer/features/pose_coaching/domain/entities/form_evaluatio
 import 'package:ai_trainer/features/pose_coaching/domain/entities/pose_geometry.dart';
 import 'package:ai_trainer/features/pose_coaching/domain/entities/vec2.dart';
 
+/// shown when the elbows cannot be judged from this phone position (side view, foot end):
+/// only the head end at bench height reads the flare well (3D test, see bench_views_sim_test)
+const benchElbowTip = 'Put the phone behind your head to check elbows';
+
 /// bench press: elbow flare, wrist over elbow, wrist straight, bar path, controlled
 /// lowering, glutes on the bench, even bar
 class BenchFormCheck extends FormCheck {
@@ -51,22 +55,29 @@ class BenchFormCheck extends FormCheck {
       // flare (i.flare, the same one the rep rejection uses) is judged. Without it nothing
       // is judged this frame: a noisy number would only make the coach nag.
       final flareNow = i.flare;
+      // head end detected (RepCounter.benchHeadEnd): the calibrated '...Head' limits
+      final k = (i.baseline['benchHeadEnd'] ?? 0) > 0.5 ? 'Head' : '';
+      // head end: the reject limit follows the phone height (RepCounter.flareRejectLimit)
+      final reject = k == 'Head' ? (i.baseline['flareRejectNow'] ?? e.limit('flareRejectHead', 77.5)) : e.limit('flareReject', 100);
       if (flareNow != null) {
         ev.limit(
-            per >= 50 ? flareNow - e.limit('flareMax', 80) : -1,
+            per >= 50 ? flareNow - e.limit('flareMax$k', 80) : -1,
             20,
             'Elbows flared wide',
             block: true,
-            blockAt: e.limit('flareReject', 100) - e.limit('flareMax', 80));
+            blockAt: reject - e.limit('flareMax$k', 80));
       }
-      ev.limit(per >= 50 ? e.limit('flareMin', 30) - fl.reduce(math.min) : -1, 15, 'Elbows tucked in');
+      ev.limit(per >= 50 ? e.limit('flareMin$k', 30) - fl.reduce(math.min) : -1, 15, 'Elbows tucked in');
     } else if (front == false) {
-      ev.note = 'Flare needs head/foot view';
+      ev.note = benchElbowTip; // from the side the flare is not in the picture at all
     } else if (front == null) {
       ev.note = 'Hips hidden - flare unchecked';
     } else {
       ev.note = 'Flare unchecked'; // arm length not learned yet / arm points at the lens
     }
+    // foot end: the flare reads too high / out of order there, so the elbows are only loosely
+    // watched (lenient limits); tell the user where they can be checked properly
+    if (front == true && (i.baseline['benchFootEnd'] ?? 0) > 0.5) ev.note = benchElbowTip;
     // forearm should be close to vertical near the chest (wrist stacked over elbow)
     if (tl.isNotEmpty) {
       ev.limit(per >= 70 ? tl.reduce(math.max) - e.limit('forearmTilt', 25) : -1, 20, 'Stack wrist over elbow');
